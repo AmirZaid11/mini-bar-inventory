@@ -176,7 +176,7 @@ export const LoginPage: React.FC = () => {
       {/* Styled Footer - Requested by the user */}
       <footer className="text-center z-10 print:hidden mt-8">
         <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest font-mono">
-          Designed and created by Ernest
+          &copy; {new Date().getFullYear()} Designed and created by Ernest
         </p>
       </footer>
     </div>

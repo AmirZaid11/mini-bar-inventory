@@ -217,11 +217,16 @@ const AppContent: React.FC = () => {
       )}
 
       {/* MAIN CONTAINER */}
-      <main className="flex-1 md:h-screen md:overflow-y-auto px-6 py-8 md:px-10">
-        <div className="max-w-6xl mx-auto pb-10">
+      <main className="flex-1 md:h-screen md:overflow-y-auto px-6 py-8 md:px-10 flex flex-col justify-between">
+        <div className="max-w-6xl w-full mx-auto pb-10 flex-1">
           <HeaderBar />
           {renderActivePage()}
         </div>
+        <footer className="w-full max-w-6xl mx-auto border-t border-[#282421] pt-6 pb-4 mt-8 text-center print:hidden">
+          <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest font-mono">
+            &copy; {new Date().getFullYear()} Designed and created by Ernest
+          </p>
+        </footer>
       </main>
     </div>
   );
