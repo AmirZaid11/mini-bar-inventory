@@ -120,10 +120,13 @@ const AppContent: React.FC = () => {
     <div className="min-h-screen bg-obsidian text-zinc-100 flex flex-col md:flex-row relative">
       {/* MOBILE HEADER */}
       <header className="md:hidden flex items-center justify-between px-6 py-4 bg-[#191715] border-b border-[#282421] sticky top-0 z-40">
-        <div className="flex items-center gap-2">
+        <button
+          onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
+          className="flex items-center gap-2 cursor-pointer outline-none active:scale-[0.98] transition-transform"
+        >
           <Wine className="w-5 h-5 text-[#c06c3c]" />
-          <span className="font-extrabold text-md tracking-tight">Amir Warehouse</span>
-        </div>
+          <span className="font-extrabold text-md tracking-tight text-[#faf8f5]">Amir Warehouse</span>
+        </button>
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="p-1 text-zinc-400 hover:text-white rounded-lg focus:outline-none"
@@ -140,14 +143,17 @@ const AppContent: React.FC = () => {
       `}>
         <div className="space-y-8">
           {/* Logo Brand */}
-          <div className="flex items-center gap-2.5 px-2">
-            <div className="w-8 h-8 rounded-lg bg-[#c06c3c] flex items-center justify-center shadow-sm">
+          <button
+            onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
+            className="flex items-center gap-2.5 px-2 cursor-pointer w-full text-left outline-none active:scale-[0.98] transition-transform"
+          >
+            <div className="w-8 h-8 rounded-lg bg-[#c06c3c] flex items-center justify-center shadow-sm shrink-0">
               <Wine className="w-4.5 h-4.5 text-[#faf8f5]" />
             </div>
-            <span className="font-bold text-sm tracking-tight text-[#faf8f5]">
+            <span className="font-bold text-sm tracking-tight text-[#faf8f5] truncate">
               Amir Warehouse
             </span>
-          </div>
+          </button>
 
           {/* Navigation Links */}
           <nav className="space-y-1">
