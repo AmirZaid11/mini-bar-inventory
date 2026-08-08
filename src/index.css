@@ -1,0 +1,183 @@
+@import "tailwindcss";
+
+:root {
+  /* Light Theme - Clean Warm Paper Look */
+  --bg-color: #faf9f6; 
+  --text-color: #201e1d;
+  --card-color: #ffffff;
+  --border-color: #e5e0d8;
+  --hover-card-color: #f7f6f2;
+  --muted-text: #706a64;
+  --accent-color: #c06c3c;
+  --input-bg: #f5f2ec;
+  --row-hover: rgba(192, 108, 60, 0.03);
+}
+
+.dark {
+  /* Dark Theme - Organic Espresso Wood Look */
+  --bg-color: #161413;
+  --text-color: #e5e0d8;
+  --card-color: #1d1b1a;
+  --border-color: #282421;
+  --hover-card-color: #211e1c;
+  --muted-text: #8c8278;
+  --accent-color: #c06c3c;
+  --input-bg: #181615;
+  --row-hover: rgba(192, 108, 60, 0.05);
+}
+
+@layer base {
+  body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Thin minimalist scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-color);
+  }
+
+  /* Global class overrides for 100% Light Mode readability */
+  h1, h2, h3, h4, h5, h6, span, p, label {
+    transition: color 0.2s ease;
+  }
+
+  /* Dark-Sidebar isolation (so sidebar text doesn't turn black in light mode) */
+  html:not(.dark) aside *, html:not(.dark) aside span, html:not(.dark) aside p {
+    color: inherit;
+  }
+
+  html:not(.dark) .text-zinc-100, 
+  html:not(.dark) .text-zinc-200, 
+  html:not(.dark) .text-zinc-300,
+  html:not(.dark) td,
+  html:not(.dark) th {
+    color: var(--text-color) !important;
+  }
+  
+  html:not(.dark) .text-zinc-400, 
+  html:not(.dark) .text-zinc-500 {
+    color: var(--muted-text) !important;
+  }
+
+  /* Main background overrides in light mode */
+  html:not(.dark) .glass-card {
+    background-color: var(--card-color) !important;
+    border-color: var(--border-color) !important;
+  }
+
+  /* Targets specific compiled tailwind backgrounds in light mode */
+  html:not(.dark) .\bg-\[\#181615\]\/80,
+  html:not(.dark) .\bg-\[\#181615\],
+  html:not(.dark) .\bg-\[\#23201e\]\/60,
+  html:not(.dark) .\bg-\[\#23201e\]\/80,
+  html:not(.dark) .bg-zinc-950,
+  html:not(.dark) .bg-zinc-900,
+  html:not(.dark) .bg-zinc-950\/5,
+  html:not(.dark) .bg-zinc-950\/10,
+  html:not(.dark) .bg-zinc-950\/20,
+  html:not(.dark) .bg-zinc-950\/30,
+  html:not(.dark) .bg-zinc-950\/40,
+  html:not(.dark) .bg-zinc-950\/50,
+  html:not(.dark) .bg-zinc-950\/60,
+  html:not(.dark) .bg-zinc-950\/75,
+  html:not(.dark) .bg-zinc-950\/80,
+  html:not(.dark) .bg-zinc-900\/5,
+  html:not(.dark) .bg-zinc-900\/10,
+  html:not(.dark) .bg-zinc-900\/20,
+  html:not(.dark) .bg-zinc-900\/30,
+  html:not(.dark) .bg-zinc-900\/40,
+  html:not(.dark) .bg-zinc-900\/50,
+  html:not(.dark) .bg-zinc-900\/60,
+  html:not(.dark) .bg-zinc-900\/75,
+  html:not(.dark) .bg-zinc-900\/85,
+  html:not(.dark) .bg-zinc-900\/80 {
+    background-color: var(--input-bg) !important;
+  }
+
+  /* Inputs, selects, and textareas */
+  input, select, textarea {
+    background-color: var(--input-bg) !important;
+    color: var(--text-color) !important;
+    border-color: var(--border-color) !important;
+    transition: all 0.2s ease;
+  }
+
+  input::placeholder, textarea::placeholder {
+    color: var(--muted-text) !important;
+    opacity: 0.6;
+  }
+
+  /* Table borders & dividers */
+  html:not(.dark) td,
+  html:not(.dark) th,
+  html:not(.dark) tr,
+  html:not(.dark) table,
+  html:not(.dark) .\border-\[\#282421\],
+  html:not(.dark) .\border-\[\#2b2724\],
+  html:not(.dark) .border-zinc-800,
+  html:not(.dark) .divider-line {
+    border-color: var(--border-color) !important;
+  }
+
+  tr:hover {
+    background-color: var(--row-hover) !important;
+  }
+}
+
+/* Designer Card Elements */
+.bg-obsidian {
+  background-color: var(--bg-color);
+}
+
+.bg-obsidian-card {
+  background-color: var(--card-color);
+}
+
+.glass-card {
+  background-color: var(--card-color);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.glass-card-hover {
+  transition: all 0.2s ease-out;
+}
+
+.glass-card-hover:hover {
+  border-color: var(--accent-color);
+  background-color: var(--hover-card-color);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px -10px rgba(0, 0, 0, 0.08);
+}
+
+.text-accent-ochre {
+  color: var(--accent-color);
+}
+
+.bg-accent-ochre {
+  background-color: var(--accent-color);
+}
+
+.border-accent-ochre {
+  border-color: var(--accent-color);
+}
+
+.divider-line {
+  border-color: var(--border-color);
+}
