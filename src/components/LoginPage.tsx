@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
 import { toast } from 'sonner';
-import { Lock, Eye, EyeOff, ShieldCheck, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Wine, Delete, CornerDownLeft } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
@@ -9,10 +9,10 @@ export const LoginPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const setAuth = useStore((state) => state.setAuth);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!password.trim()) {
-      toast.error('Please enter the administrator password.');
+      toast.error('Please enter the administrator access code.');
       return;
     }
 
@@ -27,25 +27,25 @@ export const LoginPage: React.FC = () => {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        // Fallback if the Netlify Functions returns 404 or fails, but user input is correct
+        // Fallback for local development offline mode
         if (password === '3639') {
           setAuth('demo_token', '', '');
-          toast.success('Offline verification successful. Running in Demo Mode.');
+          toast.success('Access code verified offline. Running in Demo Mode.');
           return;
         }
-        toast.error(data.error || 'Authentication failed. Please check the password.');
+        toast.error(data.error || 'Incorrect access code. Please try again.');
         setIsLoading(false);
         return;
       }
 
       setAuth(data.token, data.supabaseUrl, data.supabaseAnonKey);
-      toast.success('Access granted. Welcome back, Amir.');
+      toast.success('Access code verified. Welcome back, Ernest.');
     } catch (error: any) {
       console.error('Login error:', error);
-      // Fallback if functions offline
+      // Fallback
       if (password === '3639') {
         setAuth('demo_token', '', '');
-        toast.success('Offline verification successful. Running in Demo Mode.');
+        toast.success('Access code verified offline. Running in Demo Mode.');
         return;
       }
       toast.error('An error occurred during authentication. Please check your connection.');
@@ -53,72 +53,133 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  // Keyboard helper click triggers
+  const handleKeypadPress = (num: string) => {
+    if (password.length < 10) {
+      setPassword(prev => prev + num);
+    }
+  };
+
+  const handleBackspace = () => {
+    setPassword(prev => prev.slice(0, -1));
+  };
+
+  const handleClear = () => {
+    setPassword('');
+  };
+
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-obsidian px-4">
-      <div className="w-full max-w-md glass-card rounded-2xl p-8 relative z-10 shadow-lg border border-[#282421]">
-        <div className="flex flex-col items-center justify-center text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-zinc-950 border border-zinc-900 flex items-center justify-center shadow-inner mb-4 group hover:border-[#c06c3c]/50 transition-all duration-300">
-            <Lock className="w-5 h-5 text-zinc-400 group-hover:text-[#c06c3c] transition-colors" />
+    <div className="min-h-screen w-full flex flex-col items-center justify-between bg-obsidian py-8 px-4 relative overflow-hidden">
+      {/* Decorative Subtle Background Elements (No glowing blobs, just rustic outline cards) */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] border border-[#c06c3c]/5 rounded-full pointer-events-none z-0"></div>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] border border-[#c06c3c]/3 rounded-full pointer-events-none z-0"></div>
+
+      {/* Spacer */}
+      <div></div>
+
+      {/* Center Safe Entry Card */}
+      <div className="w-full max-w-sm glass-card rounded-3xl p-8 relative z-10 shadow-xl border border-[#282421] bg-obsidian-card animate-scaleUp">
+        {/* Vintage Brand Header */}
+        <div className="flex flex-col items-center justify-center text-center mb-6">
+          <div className="w-12 h-12 rounded-2xl bg-zinc-950 border border-zinc-900 flex items-center justify-center shadow-inner mb-3 text-[#c06c3c]">
+            <Wine className="w-5 h-5" />
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-[#faf8f5] flex items-center gap-1.5 font-sans">
-            Amir Stock <span className="text-accent-ochre font-extrabold">Warehouse</span>
+          <h1 className="text-xl font-bold tracking-tight text-zinc-100 font-sans">
+            Amir Stock <span className="text-[#c06c3c]">Manager</span>
           </h1>
-          <p className="text-zinc-500 text-xs mt-1.5 font-mono">
-            SECURED DATABASE • SYSTEM PORTAL
+          <p className="text-zinc-500 text-[10px] uppercase font-mono tracking-widest mt-1">
+            Secure Warehouse Terminal
           </p>
         </div>
 
+        {/* Input Pin Field */}
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2" htmlFor="password">
-              Admin Password
+          <div className="space-y-2">
+            <label className="block text-zinc-500 text-[10px] font-semibold uppercase tracking-wider text-center">
+              Enter Administrator Access Pin
             </label>
             <div className="relative">
               <input
-                id="password"
                 type={showPassword ? 'text' : 'password'}
-                placeholder="Enter access code"
+                readOnly // Read-only makes the keypad clicks the primary, but allows standard submission
+                placeholder="••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-                className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-3 text-zinc-100 placeholder-zinc-650 transition-all duration-200 outline-none pr-10 text-sm"
+                className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-2xl py-3.5 text-center font-mono text-xl tracking-[0.4em] text-zinc-100 placeholder-zinc-700 outline-none transition-all duration-200"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 tabIndex={-1}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="absolute inset-y-0 right-0 pr-4 flex items-center text-zinc-500 hover:text-zinc-300 transition-colors"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
               </button>
             </div>
           </div>
 
+          {/* Premium Physical Keypad Grid */}
+          <div className="grid grid-cols-3 gap-2.5 pt-2">
+            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(num => (
+              <button
+                key={num}
+                type="button"
+                onClick={() => handleKeypadPress(num)}
+                className="h-14 bg-zinc-900 border border-zinc-800/80 hover:border-zinc-700 active:bg-zinc-800 text-zinc-200 hover:text-white rounded-2xl text-lg font-semibold font-mono flex items-center justify-center transition-all cursor-pointer"
+              >
+                {num}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={handleClear}
+              className="h-14 bg-zinc-900/60 border border-zinc-800/60 hover:bg-zinc-900 active:bg-zinc-900 text-zinc-500 hover:text-zinc-350 rounded-2xl text-xs font-semibold flex items-center justify-center transition-all cursor-pointer"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => handleKeypadPress('0')}
+              className="h-14 bg-zinc-900 border border-zinc-800/80 hover:border-zinc-700 active:bg-zinc-800 text-zinc-200 hover:text-white rounded-2xl text-lg font-semibold font-mono flex items-center justify-center transition-all cursor-pointer"
+            >
+              0
+            </button>
+            <button
+              type="button"
+              onClick={handleBackspace}
+              className="h-14 bg-zinc-900/60 border border-zinc-800/60 hover:bg-zinc-900 active:bg-zinc-900 text-zinc-500 hover:text-zinc-350 rounded-2xl flex items-center justify-center transition-all cursor-pointer"
+            >
+              <Delete className="w-4.5 h-4.5" />
+            </button>
+          </div>
+
+          {/* Submit/Verify Pin Button */}
           <button
             type="submit"
-            disabled={isLoading}
-            className="w-full bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] font-bold rounded-xl py-3 px-4 shadow-sm active:translate-y-[1px] transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-55 disabled:cursor-not-allowed text-sm"
+            disabled={isLoading || password.length === 0}
+            className="w-full bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] font-bold rounded-2xl py-3.5 px-4 shadow-md transition-all active:translate-y-[1px] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider flex items-center justify-center gap-2"
           >
             {isLoading ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin text-zinc-200" />
-                <span>Authorizing Security Key...</span>
+                <Loader2 className="w-4.5 h-4.5 animate-spin" />
+                <span>Unlocking Terminal...</span>
               </>
             ) : (
               <>
-                <ShieldCheck className="w-5 h-5" />
-                <span>Verify Access Code</span>
+                <CornerDownLeft className="w-4 h-4" />
+                <span>Verify Access Pin</span>
               </>
             )}
           </button>
         </form>
-
-        <div className="mt-8 text-center border-t border-zinc-900/60 pt-6">
-          <p className="text-zinc-600 text-[11px] font-mono">
-            SECURE SYSTEM • IPS PROTECTED
-          </p>
-        </div>
       </div>
+
+      {/* Styled Footer - Requested by the user */}
+      <footer className="text-center z-10 print:hidden mt-8">
+        <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest font-mono">
+          Designed and created by Ernest
+        </p>
+      </footer>
     </div>
   );
 };
+export default LoginPage;
