@@ -22,7 +22,7 @@ interface Item {
 
 interface BulkItemAdjustment {
   item: Item;
-  quantity: number;
+  quantity: string;
 }
 
 export const BulkAdjustPage: React.FC = () => {
@@ -56,7 +56,7 @@ export const BulkAdjustPage: React.FC = () => {
     if (!productToAddId) return;
     const foundItem = items.find(i => i.id === productToAddId);
     if (foundItem) {
-      setSelectedItems([...selectedItems, { item: foundItem, quantity: 1 }]);
+      setSelectedItems([...selectedItems, { item: foundItem, quantity: '' }]);
       setProductToAddId('');
     }
   };
@@ -67,10 +67,10 @@ export const BulkAdjustPage: React.FC = () => {
   };
 
   // Update quantity for a specific item in the list
-  const handleQtyChange = (id: string, qty: number) => {
+  const handleQtyChange = (id: string, qty: string) => {
     setSelectedItems(
       selectedItems.map(adj => 
-        adj.item.id === id ? { ...adj, quantity: Math.max(1, qty) } : adj
+        adj.item.id === id ? { ...adj, quantity: qty } : adj
       )
     );
   };
@@ -81,15 +81,19 @@ export const BulkAdjustPage: React.FC = () => {
       if (selectedItems.length === 0) throw new Error('No items in batch adjustment list.');
 
       // Process adjustments sequentially or in parallel
-      const promises = selectedItems.map(adj => 
-        db.adjustStock(
+      const promises = selectedItems.map(adj => {
+        const qty = parseInt(adj.quantity);
+        if (isNaN(qty) || qty <= 0) {
+          throw new Error(`Please enter a valid quantity for ${adj.item.name}.`);
+        }
+        return db.adjustStock(
           adj.item.id,
           adjustType,
-          adj.quantity,
+          qty,
           adjustReason,
           adjustNotes
-        )
-      );
+        );
+      });
 
       await Promise.all(promises);
     },
@@ -112,9 +116,22 @@ export const BulkAdjustPage: React.FC = () => {
       return;
     }
     
+    // Check if any quantity is empty or invalid
+    const invalidQty = selectedItems.find(adj => {
+      const qty = parseInt(adj.quantity);
+      return isNaN(qty) || qty <= 0;
+    });
+    if (invalidQty) {
+      toast.error(`Please enter a valid quantity greater than 0 for ${invalidQty.item.name}.`);
+      return;
+    }
+
     // Validate stock levels if type is 'out' (cannot go below 0)
     if (adjustType === 'out') {
-      const invalid = selectedItems.find(adj => adj.item.quantity < adj.quantity);
+      const invalid = selectedItems.find(adj => {
+        const qty = parseInt(adj.quantity) || 0;
+        return adj.item.quantity < qty;
+      });
       if (invalid) {
         toast.error(`Invalid deduction: ${invalid.item.name} has only ${invalid.item.quantity} units available.`);
         return;
@@ -242,13 +259,14 @@ export const BulkAdjustPage: React.FC = () => {
                     <div className="flex items-center gap-3 ml-4">
                       {/* Qty Input */}
                       <div className="flex items-center gap-1">
-                        <span className="text-[10px] text-zinc-500 uppercase font-mono mr-1">Qty:</span>
+                        <span className="text-[10px] text-zinc-550 uppercase font-mono mr-1">Qty:</span>
                         <input
                           type="number"
                           min="1"
                           required
+                          placeholder="Qty"
                           value={adj.quantity}
-                          onChange={(e) => handleQtyChange(adj.item.id, parseInt(e.target.value) || 1)}
+                          onChange={(e) => handleQtyChange(adj.item.id, e.target.value)}
                           className="w-16 bg-zinc-900/40 border border-zinc-800 rounded px-2 py-1 text-center font-mono text-xs text-zinc-100 focus:border-[#c06c3c] outline-none"
                         />
                       </div>
@@ -331,7 +349,7 @@ export const BulkAdjustPage: React.FC = () => {
                   availableItems.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => setSelectedItems([...selectedItems, { item, quantity: 1 }])}
+                      onClick={() => setSelectedItems([...selectedItems, { item, quantity: '' }])}
                       className="w-full text-left p-2.5 bg-zinc-900/40 hover:bg-zinc-900/80 border border-zinc-800 hover:border-[#c06c3c]/30 rounded-lg text-xs flex justify-between items-center transition-all cursor-pointer group"
                     >
                       <span className="text-zinc-300 group-hover:text-zinc-200 truncate pr-2 font-medium">{item.name}</span>

@@ -18,10 +18,10 @@ interface AuthState {
 }
 
 export const useStore = create<AuthState>((set, get) => {
-  // Restore session from sessionStorage
-  const savedToken = sessionStorage.getItem('amir_token');
-  const savedUrl = sessionStorage.getItem('supabase_url');
-  const savedKey = sessionStorage.getItem('supabase_key');
+  // Restore session from localStorage
+  const savedToken = localStorage.getItem('amir_token');
+  const savedUrl = localStorage.getItem('supabase_url');
+  const savedKey = localStorage.getItem('supabase_key');
   let initialSupabase: SupabaseClient | null = null;
   
   if (savedToken && savedUrl && savedKey) {
@@ -45,9 +45,9 @@ export const useStore = create<AuthState>((set, get) => {
     theme: savedTheme,
 
     setAuth: (token, supabaseUrl, supabaseAnonKey) => {
-      sessionStorage.setItem('amir_token', token);
-      sessionStorage.setItem('supabase_url', supabaseUrl);
-      sessionStorage.setItem('supabase_key', supabaseAnonKey);
+      localStorage.setItem('amir_token', token);
+      localStorage.setItem('supabase_url', supabaseUrl);
+      localStorage.setItem('supabase_key', supabaseAnonKey);
       
       let client: SupabaseClient | null = null;
       if (supabaseUrl && supabaseAnonKey) {
@@ -63,9 +63,9 @@ export const useStore = create<AuthState>((set, get) => {
     },
 
     logout: () => {
-      sessionStorage.removeItem('amir_token');
-      sessionStorage.removeItem('supabase_url');
-      sessionStorage.removeItem('supabase_key');
+      localStorage.removeItem('amir_token');
+      localStorage.removeItem('supabase_url');
+      localStorage.removeItem('supabase_key');
       const demoDb = new DBService(null);
       set({ token: null, supabaseUrl: null, supabaseAnonKey: null, supabase: null, db: demoDb, activeTab: 'dashboard' });
     },

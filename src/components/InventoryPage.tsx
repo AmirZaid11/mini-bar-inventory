@@ -51,14 +51,14 @@ export const InventoryPage: React.FC = () => {
   // Form states
   const [formName, setFormName] = useState('');
   const [formCategory, setFormCategory] = useState('Soft Drinks & Juices');
-  const [formMinStock, setFormMinStock] = useState(5);
+  const [formMinStock, setFormMinStock] = useState<string>('5');
   const [formUnit, setFormUnit] = useState('pcs');
   const [formNotes, setFormNotes] = useState('');
-  const [formQuantity, setFormQuantity] = useState(0); // only for adding new item
+  const [formQuantity, setFormQuantity] = useState<string>('0'); // only for adding new item
 
   // Stock Adjustment Form states
   const [adjustType, setAdjustType] = useState<'in' | 'out'>('in');
-  const [adjustQuantity, setAdjustQuantity] = useState(1);
+  const [adjustQuantity, setAdjustQuantity] = useState<string>('');
   const [adjustReason, setAdjustReason] = useState('Purchase Addition');
   const [adjustNotes, setAdjustNotes] = useState('');
 
@@ -105,7 +105,11 @@ export const InventoryPage: React.FC = () => {
   const adjustStockMutation = useMutation({
     mutationFn: () => {
       if (!selectedItem) throw new Error('No item selected');
-      return db.adjustStock(selectedItem.id, adjustType, adjustQuantity, adjustReason, adjustNotes);
+      const qty = parseInt(adjustQuantity);
+      if (isNaN(qty) || qty <= 0) {
+        throw new Error('Please enter a valid quantity greater than 0.');
+      }
+      return db.adjustStock(selectedItem.id, adjustType, qty, adjustReason, adjustNotes);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] });
@@ -154,15 +158,15 @@ export const InventoryPage: React.FC = () => {
   const resetAddForm = () => {
     setFormName('');
     setFormCategory('Soft Drinks & Juices');
-    setFormMinStock(5);
+    setFormMinStock('5');
     setFormUnit('pcs');
     setFormNotes('');
-    setFormQuantity(0);
+    setFormQuantity('0');
   };
 
   const resetAdjustForm = () => {
     setAdjustType('in');
-    setAdjustQuantity(1);
+    setAdjustQuantity('');
     setAdjustReason('Purchase Addition');
     setAdjustNotes('');
   };
@@ -172,7 +176,7 @@ export const InventoryPage: React.FC = () => {
     setSelectedItem(item);
     setFormName(item.name);
     setFormCategory(item.category);
-    setFormMinStock(item.min_stock_level);
+    setFormMinStock(String(item.min_stock_level));
     setFormUnit(item.unit || 'pcs');
     setFormNotes(item.notes || '');
     setShowEditModal(true);
@@ -182,6 +186,7 @@ export const InventoryPage: React.FC = () => {
   const handleOpenAdjust = (item: Item, type: 'in' | 'out') => {
     setSelectedItem(item);
     setAdjustType(type);
+    setAdjustQuantity('');
     setAdjustReason(type === 'in' ? 'Purchase Addition' : 'Drawn to Beach Bar');
     setShowAdjustModal(true);
   };
@@ -480,11 +485,21 @@ export const InventoryPage: React.FC = () => {
                 toast.error('Product name is required.');
                 return;
               }
+              const qty = formQuantity === '' ? 0 : parseInt(formQuantity);
+              const minStock = formMinStock === '' ? 5 : parseInt(formMinStock);
+              if (isNaN(qty) || qty < 0) {
+                toast.error('Starting stock must be a valid number >= 0.');
+                return;
+              }
+              if (isNaN(minStock) || minStock < 1) {
+                toast.error('Min stock limit must be a valid number >= 1.');
+                return;
+              }
               addItemMutation.mutate({
                 name: formName.trim(),
                 category: formCategory,
-                quantity: formQuantity,
-                min_stock_level: formMinStock,
+                quantity: qty,
+                min_stock_level: minStock,
                 unit: formUnit,
                 notes: formNotes.trim(),
                 is_active: true
@@ -536,7 +551,7 @@ export const InventoryPage: React.FC = () => {
                     type="number"
                     min="0"
                     value={formQuantity}
-                    onChange={(e) => setFormQuantity(parseInt(e.target.value) || 0)}
+                    onChange={(e) => setFormQuantity(e.target.value)}
                     className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
                   />
                 </div>
@@ -546,7 +561,7 @@ export const InventoryPage: React.FC = () => {
                     type="number"
                     min="1"
                     value={formMinStock}
-                    onChange={(e) => setFormMinStock(parseInt(e.target.value) || 5)}
+                    onChange={(e) => setFormMinStock(e.target.value)}
                     className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
                   />
                 </div>
@@ -603,10 +618,15 @@ export const InventoryPage: React.FC = () => {
                 toast.error('Product name is required.');
                 return;
               }
+              const minStock = formMinStock === '' ? 5 : parseInt(formMinStock);
+              if (isNaN(minStock) || minStock < 1) {
+                toast.error('Min stock limit must be a valid number >= 1.');
+                return;
+              }
               editItemMutation.mutate({
                 name: formName.trim(),
                 category: formCategory,
-                min_stock_level: formMinStock,
+                min_stock_level: minStock,
                 unit: formUnit,
                 notes: formNotes.trim(),
               });
@@ -654,7 +674,7 @@ export const InventoryPage: React.FC = () => {
                   type="number"
                   min="1"
                   value={formMinStock}
-                  onChange={(e) => setFormMinStock(parseInt(e.target.value) || 5)}
+                  onChange={(e) => setFormMinStock(e.target.value)}
                   className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
                 />
               </div>
@@ -707,6 +727,11 @@ export const InventoryPage: React.FC = () => {
             {/* Modal Form */}
             <form onSubmit={(e) => {
               e.preventDefault();
+              const qty = parseInt(adjustQuantity);
+              if (isNaN(qty) || qty <= 0) {
+                toast.error('Please enter a valid quantity greater than 0.');
+                return;
+              }
               adjustStockMutation.mutate();
             }} className="p-6 space-y-4">
               <div className="p-3 bg-zinc-950 border border-zinc-850 rounded-xl flex items-center justify-between text-sm">
@@ -722,8 +747,9 @@ export const InventoryPage: React.FC = () => {
                   type="number"
                   min="1"
                   required
+                  placeholder="Enter quantity"
                   value={adjustQuantity}
-                  onChange={(e) => setAdjustQuantity(Math.max(1, parseInt(e.target.value) || 0))}
+                  onChange={(e) => setAdjustQuantity(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none focus:border-amber-500/60"
                 />
               </div>
