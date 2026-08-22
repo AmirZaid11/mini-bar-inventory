@@ -238,15 +238,15 @@ export default function App() {
   const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
-    // Start fading out at 1.5 seconds
+    // Start fading out at 4.5 seconds
     const fadeTimer = setTimeout(() => {
       setFadeOut(true);
-    }, 1500);
+    }, 4500);
 
-    // Remove splash screen from DOM at 2.0 seconds
+    // Remove splash screen from DOM at 5.0 seconds
     const finishTimer = setTimeout(() => {
       setShowSplash(false);
-    }, 2000);
+    }, 5000);
 
     return () => {
       clearTimeout(fadeTimer);
