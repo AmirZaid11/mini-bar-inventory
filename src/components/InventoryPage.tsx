@@ -352,7 +352,17 @@ export const InventoryPage: React.FC = () => {
       {/* Supreme Dashboard Stats Widgets */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Active Items Widget */}
-        <div className="glass-card bg-[#191715]/40 border border-[#2b2724] p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between h-28 hover:border-zinc-850 transition-all">
+        <div 
+          onClick={() => {
+            setCatalogMode('active');
+            setStatusFilter('');
+          }}
+          className={`glass-card p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between h-28 cursor-pointer transition-all active:scale-[0.97] border ${
+            catalogMode === 'active' && statusFilter === '' 
+              ? 'border-[#c06c3c] bg-[#c06c3c]/5 shadow-[0_0_15px_rgba(192,108,60,0.08)]' 
+              : 'bg-[#191715]/40 border-[#2b2724] hover:border-zinc-800'
+          }`}
+        >
           <div className="absolute top-2 right-2 w-8 h-8 rounded-lg bg-zinc-950 flex items-center justify-center text-zinc-500">
             <Package className="w-4.5 h-4.5" />
           </div>
@@ -364,7 +374,17 @@ export const InventoryPage: React.FC = () => {
         </div>
 
         {/* Out of Stock Widget */}
-        <div className="glass-card bg-[#191715]/40 border border-[#2b2724] p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between h-28 hover:border-rose-900/30 transition-all group">
+        <div 
+          onClick={() => {
+            setCatalogMode('active');
+            setStatusFilter('out');
+          }}
+          className={`glass-card p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between h-28 cursor-pointer transition-all active:scale-[0.97] group border ${
+            catalogMode === 'active' && statusFilter === 'out' 
+              ? 'border-rose-500/50 bg-rose-950/10 shadow-[0_0_15px_rgba(239,68,68,0.08)]' 
+              : 'bg-[#191715]/40 border-[#2b2724] hover:border-rose-900/30'
+          }`}
+        >
           <div className={`absolute top-2 right-2 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${outOfStock > 0 ? 'bg-rose-500/10 text-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.15)]' : 'bg-zinc-950 text-zinc-500'}`}>
             <XCircle className="w-4.5 h-4.5" />
           </div>
@@ -376,7 +396,17 @@ export const InventoryPage: React.FC = () => {
         </div>
 
         {/* Low Stock Widget */}
-        <div className="glass-card bg-[#191715]/40 border border-[#2b2724] p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between h-28 hover:border-amber-900/30 transition-all">
+        <div 
+          onClick={() => {
+            setCatalogMode('active');
+            setStatusFilter('low');
+          }}
+          className={`glass-card p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between h-28 cursor-pointer transition-all active:scale-[0.97] border ${
+            catalogMode === 'active' && statusFilter === 'low' 
+              ? 'border-amber-500/50 bg-amber-950/10 shadow-[0_0_15px_rgba(245,158,11,0.08)]' 
+              : 'bg-[#191715]/40 border-[#2b2724] hover:border-amber-900/30'
+          }`}
+        >
           <div className={`absolute top-2 right-2 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${lowStock > 0 ? 'bg-amber-500/10 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.15)]' : 'bg-zinc-950 text-zinc-500'}`}>
             <AlertTriangle className="w-4.5 h-4.5" />
           </div>
@@ -388,7 +418,16 @@ export const InventoryPage: React.FC = () => {
         </div>
 
         {/* Archived Catalog Widget */}
-        <div className="glass-card bg-[#191715]/40 border border-[#2b2724] p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between h-28 hover:border-zinc-800 transition-all">
+        <div 
+          onClick={() => {
+            setCatalogMode('archived');
+          }}
+          className={`glass-card p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between h-28 cursor-pointer transition-all active:scale-[0.97] border ${
+            catalogMode === 'archived' 
+              ? 'border-[#c06c3c] bg-[#c06c3c]/5 shadow-[0_0_15px_rgba(192,108,60,0.08)]' 
+              : 'bg-[#191715]/40 border-[#2b2724] hover:border-zinc-800'
+          }`}
+        >
           <div className={`absolute top-2 right-2 w-8 h-8 rounded-lg flex items-center justify-center ${totalArchived > 0 ? 'bg-zinc-900 text-zinc-350 border border-zinc-800' : 'bg-zinc-950 text-zinc-500'}`}>
             <Archive className="w-4.5 h-4.5" />
           </div>
