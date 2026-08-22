@@ -29,7 +29,7 @@ export const LoginPage: React.FC = () => {
       if (!response.ok || !data.success) {
         // Fallback for local development offline mode
         if (password === '3639') {
-          setAuth('demo_token', '', '');
+          setAuth('demo_token', null);
           toast.success('Access code verified offline. Running in Demo Mode.');
           return;
         }
@@ -38,13 +38,13 @@ export const LoginPage: React.FC = () => {
         return;
       }
 
-      setAuth(data.token, data.supabaseUrl, data.supabaseAnonKey);
+      setAuth(data.token, data.firebaseConfig);
       toast.success('Access code verified. Welcome back, Ernest.');
     } catch (error: any) {
       console.error('Login error:', error);
       // Fallback
       if (password === '3639') {
-        setAuth('demo_token', '', '');
+        setAuth('demo_token', null);
         toast.success('Access code verified offline. Running in Demo Mode.');
         return;
       }

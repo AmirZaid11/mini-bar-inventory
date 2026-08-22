@@ -1,16 +1,19 @@
 import { create } from 'zustand';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { initializeApp, getApp, getApps } from 'firebase/app';
+import type { FirebaseApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
+import type { Firestore } from 'firebase/firestore';
 import { DBService } from '../services/dbService';
 
 interface AuthState {
   token: string | null;
-  supabaseUrl: string | null;
-  supabaseAnonKey: string | null;
-  supabase: SupabaseClient | null;
+  firebaseConfig: string | null;
+  firebaseApp: FirebaseApp | null;
+  firestore: Firestore | null;
   db: DBService;
   activeTab: 'dashboard' | 'inventory' | 'transactions' | 'shortages' | 'bulk_adjust' | 'audits';
   theme: 'dark' | 'light';
-  setAuth: (token: string, supabaseUrl: string, supabaseAnonKey: string) => void;
+  setAuth: (token: string, firebaseConfig: any) => void;
   logout: () => void;
   setActiveTab: (tab: 'dashboard' | 'inventory' | 'transactions' | 'shortages' | 'bulk_adjust' | 'audits') => void;
   toggleTheme: () => void;
@@ -20,54 +23,59 @@ interface AuthState {
 export const useStore = create<AuthState>((set, get) => {
   // Restore session from localStorage
   const savedToken = localStorage.getItem('amir_token');
-  const savedUrl = localStorage.getItem('supabase_url');
-  const savedKey = localStorage.getItem('supabase_key');
-  let initialSupabase: SupabaseClient | null = null;
+  const savedConfigStr = localStorage.getItem('firebase_config');
+  let initialApp: FirebaseApp | null = null;
+  let initialFirestore: Firestore | null = null;
   
-  if (savedToken && savedUrl && savedKey) {
+  if (savedToken && savedConfigStr) {
     try {
-      initialSupabase = createClient(savedUrl, savedKey);
+      const config = JSON.parse(savedConfigStr);
+      if (config && config.projectId) {
+        initialApp = getApps().length === 0 ? initializeApp(config) : getApp();
+        initialFirestore = getFirestore(initialApp);
+      }
     } catch (e) {
-      console.error('Failed to initialize restored Supabase client', e);
+      console.error('Failed to initialize restored Firebase client', e);
     }
   }
 
-  const initialDb = new DBService(initialSupabase);
+  const initialDb = new DBService(initialFirestore);
   const savedTheme = (localStorage.getItem('amir_theme') as 'dark' | 'light') || 'dark';
 
   return {
     token: savedToken || null,
-    supabaseUrl: savedUrl || null,
-    supabaseAnonKey: savedKey || null,
-    supabase: initialSupabase,
+    firebaseConfig: savedConfigStr || null,
+    firebaseApp: initialApp,
+    firestore: initialFirestore,
     db: initialDb,
     activeTab: 'dashboard',
     theme: savedTheme,
 
-    setAuth: (token, supabaseUrl, supabaseAnonKey) => {
+    setAuth: (token, firebaseConfig) => {
+      const configStr = JSON.stringify(firebaseConfig);
       localStorage.setItem('amir_token', token);
-      localStorage.setItem('supabase_url', supabaseUrl);
-      localStorage.setItem('supabase_key', supabaseAnonKey);
+      localStorage.setItem('firebase_config', configStr);
       
-      let client: SupabaseClient | null = null;
-      if (supabaseUrl && supabaseAnonKey) {
+      let app: FirebaseApp | null = null;
+      let dbInstance: Firestore | null = null;
+      if (firebaseConfig && firebaseConfig.projectId) {
         try {
-          client = createClient(supabaseUrl, supabaseAnonKey);
+          app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+          dbInstance = getFirestore(app);
         } catch (e) {
-          console.error('Failed to create Supabase client during login:', e);
+          console.error('Failed to create Firebase client during login:', e);
         }
       }
       
-      const dbService = new DBService(client);
-      set({ token, supabaseUrl, supabaseAnonKey, supabase: client, db: dbService });
+      const dbService = new DBService(dbInstance);
+      set({ token, firebaseConfig: configStr, firebaseApp: app, firestore: dbInstance, db: dbService });
     },
 
     logout: () => {
       localStorage.removeItem('amir_token');
-      localStorage.removeItem('supabase_url');
-      localStorage.removeItem('supabase_key');
+      localStorage.removeItem('firebase_config');
       const demoDb = new DBService(null);
-      set({ token: null, supabaseUrl: null, supabaseAnonKey: null, supabase: null, db: demoDb, activeTab: 'dashboard' });
+      set({ token: null, firebaseConfig: null, firebaseApp: null, firestore: null, db: demoDb, activeTab: 'dashboard' });
     },
 
     setActiveTab: (tab) => set({ activeTab: tab }),

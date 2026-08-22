@@ -1,14 +1,22 @@
-import { createClient } from '@supabase/supabase-js';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, getDocs, doc, setDoc } from 'firebase/firestore';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY,
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.FIREBASE_PROJECT_ID,
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.FIREBASE_APP_ID
+};
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Error: Please provide SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY) as environment variables.');
+if (!firebaseConfig.projectId) {
+  console.error('Error: Please provide FIREBASE_PROJECT_ID and other Firebase config environment variables.');
   process.exit(1);
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 const items = [
   // Soft Drinks & Juices
@@ -169,26 +177,51 @@ const items = [
 async function seed() {
   console.log(`Starting seeding of ${items.length} items...`);
   
-  // Insert items one by one or in batches, and ignore duplicates
+  const itemsCol = collection(db, 'items');
+  const snapshot = await getDocs(itemsCol);
+  const existingDocs = {};
+  snapshot.forEach(docSnap => {
+    const data = docSnap.data();
+    if (data.name) {
+      existingDocs[data.name.toLowerCase()] = docSnap.id;
+    }
+  });
+
+  // Insert items one by one, and ignore/update duplicates
   for (const item of items) {
-    const { data, error } = await supabase
-      .from('items')
-      .upsert(
-        { 
-          name: item.name, 
-          category: item.category, 
-          quantity: 0, 
-          min_stock_level: item.min_stock_level, 
-          unit: item.unit,
-          is_active: true
-        }, 
-        { onConflict: 'name' }
-      );
+    const lowerName = item.name.toLowerCase();
+    const existingId = existingDocs[lowerName];
     
-    if (error) {
-      console.error(`Failed to insert ${item.name}:`, error.message);
-    } else {
-      console.log(`Successfully seeded/updated: ${item.name}`);
+    try {
+      if (existingId) {
+        // Update
+        const itemRef = doc(db, 'items', existingId);
+        await setDoc(itemRef, {
+          name: item.name,
+          category: item.category,
+          min_stock_level: item.min_stock_level,
+          unit: item.unit,
+          is_active: true,
+          updated_at: new Date().toISOString()
+        }, { merge: true });
+        console.log(`Successfully updated: ${item.name}`);
+      } else {
+        // Create
+        const itemRef = doc(itemsCol);
+        await setDoc(itemRef, {
+          name: item.name,
+          category: item.category,
+          quantity: 0,
+          min_stock_level: item.min_stock_level,
+          unit: item.unit,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+        console.log(`Successfully seeded: ${item.name}`);
+      }
+    } catch (error) {
+      console.error(`Failed to seed ${item.name}:`, error.message);
     }
   }
 

@@ -1,4 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+import { Firestore, collection, getDocs, doc, addDoc, updateDoc, writeBatch, getDoc, runTransaction } from 'firebase/firestore';
 
 export interface Item {
   id: string;
@@ -184,12 +184,12 @@ const INITIAL_DEMO_ITEMS = [
 ];
 
 export class DBService {
-  private supabase: SupabaseClient | null = null;
+  private db: Firestore | null = null;
   private isDemoMode = false;
 
-  constructor(supabaseClient: SupabaseClient | null) {
-    this.supabase = supabaseClient;
-    this.isDemoMode = !supabaseClient;
+  constructor(firestore: Firestore | null) {
+    this.db = firestore;
+    this.isDemoMode = !firestore;
 
     if (this.isDemoMode) {
       this.initDemoDatabase();
@@ -236,14 +236,18 @@ export class DBService {
       return items.filter((item: Item) => item.is_active);
     }
 
-    const { data, error } = await this.supabase!
-      .from('items')
-      .select('*')
-      .eq('is_active', true)
-      .order('name', { ascending: true });
+    const itemsCol = collection(this.db!, 'items');
+    const snapshot = await getDocs(itemsCol);
+    const items: Item[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data.is_active !== false) {
+        items.push({ id: docSnap.id, ...data } as Item);
+      }
+    });
 
-    if (error) throw error;
-    return data || [];
+    // Sort by name ascending (case insensitive)
+    return items.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
   }
 
   // --- ADD NEW ITEM ---
@@ -280,28 +284,46 @@ export class DBService {
       return item;
     }
 
-    const { data: insertedData, error: itemError } = await this.supabase!
-      .from('items')
-      .insert([newItem])
-      .select()
-      .single();
+    // Live Firebase mode
+    const itemsCol = collection(this.db!, 'items');
+    const snapshot = await getDocs(itemsCol);
+    const exists = snapshot.docs.some(docSnap => {
+      const data = docSnap.data();
+      return data.is_active !== false && data.name.toLowerCase() === newItem.name.toLowerCase();
+    });
 
-    if (itemError) throw itemError;
+    if (exists) {
+      throw new Error('A product with this name already exists in the catalog.');
+    }
 
-    if (newItem.quantity > 0 && insertedData) {
-      const { error: txError } = await this.supabase!
-        .from('transactions')
-        .insert([{
-          item_id: insertedData.id,
+    const createdAt = new Date().toISOString();
+    const docRef = await addDoc(itemsCol, {
+      ...newItem,
+      created_at: createdAt,
+      updated_at: createdAt
+    });
+
+    if (newItem.quantity > 0) {
+      try {
+        const txCol = collection(this.db!, 'transactions');
+        await addDoc(txCol, {
+          item_id: docRef.id,
           type: 'in',
           quantity: newItem.quantity,
           reason: 'Opening Balance',
-          notes: 'Initialized starting quantity'
-        }]);
-      if (txError) console.error('Failed to log transaction:', txError);
+          notes: 'Initialized starting quantity',
+          created_at: createdAt
+        });
+      } catch (txError) {
+        console.error('Failed to log transaction:', txError);
+      }
     }
 
-    return insertedData;
+    return {
+      id: docRef.id,
+      ...newItem,
+      created_at: createdAt
+    };
   }
 
   // --- EDIT PRODUCT DETAILS ---
@@ -323,15 +345,28 @@ export class DBService {
       return updated;
     }
 
-    const { data, error } = await this.supabase!
-      .from('items')
-      .update(fields)
-      .eq('id', id)
-      .select()
-      .single();
+    // Live Firebase mode
+    const itemsCol = collection(this.db!, 'items');
+    if (fields.name) {
+      const snapshot = await getDocs(itemsCol);
+      const exists = snapshot.docs.some(docSnap => {
+        const data = docSnap.data();
+        return docSnap.id !== id && data.is_active !== false && data.name.toLowerCase() === fields.name!.toLowerCase();
+      });
+      if (exists) {
+        throw new Error('Another product is already registered with this name.');
+      }
+    }
 
-    if (error) throw error;
-    return data;
+    const docRef = doc(this.db!, 'items', id);
+    const updatedFields = {
+      ...fields,
+      updated_at: new Date().toISOString()
+    };
+    await updateDoc(docRef, updatedFields);
+    
+    const docSnap = await getDoc(docRef);
+    return { id, ...docSnap.data() } as Item;
   }
 
   // --- STOCK ADJUSTMENT ---
@@ -360,38 +395,39 @@ export class DBService {
       return;
     }
 
-    // Supabase implementation: fetch current quantity
-    const { data: itemData, error: fetchError } = await this.supabase!
-      .from('items')
-      .select('quantity')
-      .eq('id', id)
-      .single();
+    // Live Firebase mode using Transactions for atomic stock adjustment
+    const itemRef = doc(this.db!, 'items', id);
     
-    if (fetchError) throw fetchError;
+    await runTransaction(this.db!, async (transaction) => {
+      const itemSnap = await transaction.get(itemRef);
+      if (!itemSnap.exists()) {
+        throw new Error('Product not found');
+      }
 
-    const newQty = type === 'in' ? itemData.quantity + quantity : itemData.quantity - quantity;
-    if (newQty < 0) throw new Error('Deduction exceeds stock level.');
+      const currentQty = itemSnap.data().quantity || 0;
+      const newQty = type === 'in' ? currentQty + quantity : currentQty - quantity;
+      if (newQty < 0) {
+        throw new Error('Deduction exceeds stock level.');
+      }
 
-    // Update quantity
-    const { error: itemError } = await this.supabase!
-      .from('items')
-      .update({ quantity: newQty, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      // Update item quantity
+      transaction.update(itemRef, {
+        quantity: newQty,
+        updated_at: new Date().toISOString()
+      });
 
-    if (itemError) throw itemError;
-
-    // Log transaction
-    const { error: txError } = await this.supabase!
-      .from('transactions')
-      .insert([{
+      // Log transaction record
+      const txCol = collection(this.db!, 'transactions');
+      const newTxRef = doc(txCol);
+      transaction.set(newTxRef, {
         item_id: id,
         type,
         quantity,
         reason,
-        notes
-      }]);
-
-    if (txError) throw txError;
+        notes,
+        created_at: new Date().toISOString()
+      });
+    });
   }
 
   // --- SOFT DELETE ---
@@ -406,12 +442,11 @@ export class DBService {
       return;
     }
 
-    const { error } = await this.supabase!
-      .from('items')
-      .update({ is_active: false })
-      .eq('id', id);
-
-    if (error) throw error;
+    const docRef = doc(this.db!, 'items', id);
+    await updateDoc(docRef, { 
+      is_active: false,
+      updated_at: new Date().toISOString()
+    });
   }
 
   // --- GET TRANSACTIONS ---
@@ -424,30 +459,40 @@ export class DBService {
       return limit ? sorted.slice(0, limit) : sorted;
     }
 
-    let query = this.supabase!
-      .from('transactions')
-      .select(`
-        id,
-        item_id,
-        type,
-        quantity,
-        reason,
-        notes,
-        created_at,
-        items (
-          name,
-          category
-        )
-      `)
-      .order('created_at', { ascending: false });
+    // Live Firebase mode
+    const txCol = collection(this.db!, 'transactions');
+    const txSnapshot = await getDocs(txCol);
 
-    if (limit) {
-      query = query.limit(limit);
-    }
+    // Fetch items list to resolve item name/category mapping
+    const itemsCol = collection(this.db!, 'items');
+    const itemsSnapshot = await getDocs(itemsCol);
+    const itemsMap: Record<string, { name: string; category: string }> = {};
+    itemsSnapshot.forEach((docSnap) => {
+      const d = docSnap.data();
+      itemsMap[docSnap.id] = { name: d.name || '', category: d.category || '' };
+    });
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data || []) as any[];
+    const transactions: Transaction[] = [];
+    txSnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      const itemId = data.item_id;
+      transactions.push({
+        id: docSnap.id,
+        item_id: itemId,
+        type: data.type,
+        quantity: data.quantity,
+        reason: data.reason || '',
+        notes: data.notes || '',
+        created_at: data.created_at,
+        items: itemsMap[itemId] || null
+      });
+    });
+
+    const sorted = transactions.sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    return limit ? sorted.slice(0, limit) : sorted;
   }
 
   // Helper to log transaction in demo mode
@@ -475,17 +520,31 @@ export class DBService {
       return;
     }
 
-    // Live Supabase integration
-    const { error: txError } = await this.supabase!
-      .from('transactions')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000');
-    if (txError) throw txError;
+    // Live Firebase mode using batches
+    const itemsCol = collection(this.db!, 'items');
+    const itemsSnap = await getDocs(itemsCol);
+    const batch = writeBatch(this.db!);
+    itemsSnap.forEach((docSnap) => {
+      batch.update(docSnap.ref, { quantity: 0, updated_at: new Date().toISOString() });
+    });
+    await batch.commit();
 
-    const { error: itemError } = await this.supabase!
-      .from('items')
-      .update({ quantity: 0 })
-      .neq('id', '00000000-0000-0000-0000-000000000000');
-    if (itemError) throw itemError;
+    const txCol = collection(this.db!, 'transactions');
+    const txSnap = await getDocs(txCol);
+    let deleteBatch = writeBatch(this.db!);
+    let count = 0;
+    
+    for (const docSnap of txSnap.docs) {
+      deleteBatch.delete(docSnap.ref);
+      count++;
+      if (count === 500) {
+        await deleteBatch.commit();
+        deleteBatch = writeBatch(this.db!);
+        count = 0;
+      }
+    }
+    if (count > 0) {
+      await deleteBatch.commit();
+    }
   }
 }
