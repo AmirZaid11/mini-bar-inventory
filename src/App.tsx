@@ -138,7 +138,7 @@ const AppContent: React.FC = () => {
 
       {/* SIDEBAR SIDE PANEL */}
       <aside className={`
-        fixed inset-y-0 left-0 z-40 w-64 bg-[#191715] md:bg-[#191715] border-r border-[#282421] p-6 flex flex-col justify-between
+        fixed inset-y-0 left-0 z-40 w-64 bg-[#141211] md:bg-[#141211] border-r border-[#2b2724] p-6 flex flex-col justify-between
         transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:h-screen
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
@@ -169,10 +169,10 @@ const AppContent: React.FC = () => {
                     setMobileMenuOpen(false);
                   }}
                   className={`
-                    w-full flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150 cursor-pointer
+                    w-full flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-150 cursor-pointer border
                     ${isActive 
-                      ? 'bg-[#23201e] text-[#c06c3c] border border-[#2e2a27]' 
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-[#23201e]/60'
+                      ? 'bg-[#c06c3c]/10 text-[#c06c3c] border-[#c06c3c]/20 shadow-sm' 
+                      : 'text-zinc-550 border-transparent hover:text-zinc-200 hover:bg-zinc-950/40'
                     }
                   `}
                 >
@@ -185,14 +185,14 @@ const AppContent: React.FC = () => {
         </div>
 
         {/* User Info & Logout */}
-        <div className="space-y-4 pt-6 border-t border-[#282421]">
-          <div className="flex items-center gap-3 px-2">
-            <div className="w-8 h-8 rounded-full bg-zinc-950 border border-zinc-900 flex items-center justify-center">
+        <div className="space-y-4 pt-6 border-t border-[#2b2724]">
+          <div className="flex items-center gap-3 px-3 py-2.5 bg-zinc-950/40 border border-zinc-900/60 rounded-2xl shadow-inner">
+            <div className="w-8 h-8 rounded-full bg-[#c06c3c]/10 border border-[#c06c3c]/20 flex items-center justify-center">
               <User className="w-4 h-4 text-[#c06c3c]" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-zinc-300 truncate">Ernest</p>
-              <p className="text-[10px] text-zinc-500 truncate">Warehouse Admin</p>
+              <p className="text-[10px] text-zinc-550 font-mono uppercase tracking-wider truncate">Warehouse Admin</p>
             </div>
           </div>
 
@@ -201,9 +201,9 @@ const AppContent: React.FC = () => {
               logout();
               setMobileMenuOpen(false);
             }}
-            className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors cursor-pointer"
+            className="w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider text-rose-400 hover:bg-rose-500/10 hover:text-rose-350 transition-colors cursor-pointer border border-transparent hover:border-rose-950/30"
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-4.5 h-4.5" />
             <span>Sign Out</span>
           </button>
         </div>

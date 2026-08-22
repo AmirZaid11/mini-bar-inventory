@@ -229,11 +229,11 @@ export class DBService {
     }
   }
 
-  // --- GET ALL ACTIVE ITEMS ---
-  async getItems(): Promise<Item[]> {
+  // --- GET ITEMS ---
+  async getItems(includeInactive = false): Promise<Item[]> {
     if (this.isDemoMode) {
       const items = JSON.parse(localStorage.getItem('amir_demo_items') || '[]');
-      return items.filter((item: Item) => item.is_active);
+      return includeInactive ? items : items.filter((item: Item) => item.is_active);
     }
 
     const itemsCol = collection(this.db!, 'items');
@@ -241,7 +241,7 @@ export class DBService {
     const items: Item[] = [];
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      if (data.is_active !== false) {
+      if (includeInactive || data.is_active !== false) {
         items.push({ id: docSnap.id, ...data } as Item);
       }
     });

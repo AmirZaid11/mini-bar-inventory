@@ -16,7 +16,11 @@ import {
   CheckCircle,
   AlertTriangle,
   XCircle,
-  Loader2
+  Loader2,
+  EyeOff,
+  Package,
+  Archive,
+  Undo2
 } from 'lucide-react';
 
 interface Item {
@@ -39,6 +43,7 @@ export const InventoryPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [catalogMode, setCatalogMode] = useState<'active' | 'archived'>('active');
 
   // Modals state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -54,7 +59,7 @@ export const InventoryPage: React.FC = () => {
   const [formMinStock, setFormMinStock] = useState<string>('5');
   const [formUnit, setFormUnit] = useState('pcs');
   const [formNotes, setFormNotes] = useState('');
-  const [formQuantity, setFormQuantity] = useState<string>('0'); // only for adding new item
+  const [formQuantity, setFormQuantity] = useState<string>('0'); 
 
   // Stock Adjustment Form states
   const [adjustType, setAdjustType] = useState<'in' | 'out'>('in');
@@ -62,10 +67,10 @@ export const InventoryPage: React.FC = () => {
   const [adjustReason, setAdjustReason] = useState('Purchase Addition');
   const [adjustNotes, setAdjustNotes] = useState('');
 
-  // Fetch Items
+  // Fetch Items (Include inactive items for administrative toggle view)
   const { data: items = [], isLoading } = useQuery<Item[]>({
     queryKey: ['items'],
-    queryFn: () => db.getItems(),
+    queryFn: () => db.getItems(true),
   });
 
   // Extract unique categories for filter list
@@ -77,7 +82,7 @@ export const InventoryPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items'] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      toast.success('Successfully added product.');
+      toast.success('Successfully added product to the catalog.');
       setShowAddModal(false);
       resetAddForm();
     },
@@ -102,6 +107,19 @@ export const InventoryPage: React.FC = () => {
     }
   });
 
+  const toggleActiveMutation = useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) => 
+      db.updateItem(id, { is_active }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['items'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      toast.success(variables.is_active ? 'Product restored to active catalog.' : 'Product deactivated and removed from running inventory.');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update catalog status.');
+    }
+  });
+
   const adjustStockMutation = useMutation({
     mutationFn: () => {
       if (!selectedItem) throw new Error('No item selected');
@@ -121,17 +139,6 @@ export const InventoryPage: React.FC = () => {
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to adjust stock levels.');
-    }
-  });
-
-  const deleteItemMutation = useMutation({
-    mutationFn: (id: string) => db.deleteItem(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['items'] });
-      toast.success('Product soft deleted from inventory.');
-    },
-    onError: (error: any) => {
-      toast.error(error.message || 'Failed to delete item.');
     }
   });
 
@@ -191,15 +198,22 @@ export const InventoryPage: React.FC = () => {
     setShowAdjustModal(true);
   };
 
-  // Trigger Soft Delete
-  const handleDelete = (item: Item) => {
-    if (confirm(`Are you sure you want to delete ${item.name} from the catalog?`)) {
-      deleteItemMutation.mutate(item.id);
+  // Toggle active / deactivated state
+  const handleToggleActive = (item: Item, newActive: boolean) => {
+    const warningText = newActive 
+      ? `Are you sure you want to restore ${item.name} to the running inventory list?` 
+      : `Are you sure you want to remove ${item.name} from the active catalog? It will be hidden from inventory logs but not deleted.`;
+      
+    if (confirm(warningText)) {
+      toggleActiveMutation.mutate({ id: item.id, is_active: newActive });
     }
   };
 
   // Filter Logic
   const filteredItems = items.filter(item => {
+    // Mode filter: active catalog items vs archived/deactivated
+    const matchesCatalogMode = catalogMode === 'active' ? item.is_active !== false : item.is_active === false;
+    
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) || 
                           (item.category || '').toLowerCase().includes(search.toLowerCase());
     const matchesCategory = categoryFilter === '' || item.category === categoryFilter;
@@ -215,8 +229,14 @@ export const InventoryPage: React.FC = () => {
       }
     }
 
-    return matchesSearch && matchesCategory && matchesStatus;
+    return matchesCatalogMode && matchesSearch && matchesCategory && matchesStatus;
   });
+
+  // Calculate catalog stats dynamically (Active catalog only for running levels)
+  const totalActive = items.filter(i => i.is_active !== false).length;
+  const outOfStock = items.filter(i => i.is_active !== false && i.quantity === 0).length;
+  const lowStock = items.filter(i => i.is_active !== false && i.quantity > 0 && i.quantity <= i.min_stock_level).length;
+  const totalArchived = items.filter(i => i.is_active === false).length;
 
   // Export to CSV
   const handleExportCSV = () => {
@@ -225,7 +245,7 @@ export const InventoryPage: React.FC = () => {
       return;
     }
 
-    const headers = ['Name', 'Category', 'Quantity', 'Unit', 'Min Stock Level', 'Status', 'Notes'];
+    const headers = ['Name', 'Category', 'Quantity', 'Unit', 'Min Stock Level', 'Status', 'Catalog Mode', 'Notes'];
     const rows = filteredItems.map(item => {
       let status = 'In Stock';
       if (item.quantity === 0) status = 'Out of Stock';
@@ -238,6 +258,7 @@ export const InventoryPage: React.FC = () => {
         item.unit || 'pcs',
         item.min_stock_level,
         status,
+        item.is_active ? 'Active' : 'Archived',
         item.notes || ''
       ].map(val => {
         const stringVal = String(val).replace(/"/g, '""');
@@ -258,57 +279,69 @@ export const InventoryPage: React.FC = () => {
     toast.success('CSV Export downloaded successfully.');
   };
 
-  const getStatusBadge = (quantity: number, minStock: number) => {
+  const getStatusBadge = (quantity: number, minStock: number, is_active: boolean) => {
+    if (!is_active) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-zinc-800/60 text-zinc-500 border border-zinc-750">
+          <Archive className="w-3 h-3" />
+          <span>Deactivated</span>
+        </span>
+      );
+    }
     if (quantity === 0) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/15">
-          <XCircle className="w-3.5 h-3.5" />
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/15">
+          <XCircle className="w-3 h-3" />
           <span>Out of Stock</span>
         </span>
       );
     }
     if (quantity <= minStock) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/15">
-          <AlertTriangle className="w-3.5 h-3.5" />
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/15">
+          <AlertTriangle className="w-3 h-3" />
           <span>Low Stock</span>
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/15">
-        <CheckCircle className="w-3.5 h-3.5" />
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/15">
+        <CheckCircle className="w-3 h-3" />
         <span>In Stock</span>
       </span>
     );
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-8 animate-fadeIn">
       {/* Top Banner / Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-100 font-sans">Inventory Hub</h1>
-          <p className="text-zinc-400 text-sm mt-1">Manage stocks, adjust levels, and track categories.</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-zinc-100 font-sans">
+            Inventory <span className="text-[#c06c3c]">Hub</span>
+          </h1>
+          <p className="text-zinc-500 text-xs font-mono uppercase tracking-widest mt-1">
+            Warehouse control • Catalog adjustment panel
+          </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={handleResetAll}
-            className="flex items-center gap-2 px-4 py-2.5 bg-rose-950/20 hover:bg-rose-950/40 border border-rose-950/40 text-rose-400 rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-rose-950/20 hover:bg-rose-900/30 border border-rose-900/30 hover:border-rose-700/40 text-rose-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm"
           >
             <Trash2 className="w-4 h-4" />
-            <span>Reset Stock (Zero All)</span>
+            <span>Reset All Stock</span>
           </button>
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm"
           >
             <Download className="w-4 h-4" />
             <span>Export CSV</span>
           </button>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-xl text-sm font-semibold transition-all duration-200 cursor-pointer shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-md"
           >
             <Plus className="w-4 h-4" />
             <span>New Item</span>
@@ -316,18 +349,104 @@ export const InventoryPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Supreme Dashboard Stats Widgets */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Active Items Widget */}
+        <div className="glass-card bg-[#191715]/40 border border-[#2b2724] p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between h-28 hover:border-zinc-850 transition-all">
+          <div className="absolute top-2 right-2 w-8 h-8 rounded-lg bg-zinc-950 flex items-center justify-center text-zinc-500">
+            <Package className="w-4.5 h-4.5" />
+          </div>
+          <div>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold">Active Products</p>
+            <h3 className="text-2xl font-extrabold text-zinc-100 mt-1 font-mono">{isLoading ? '...' : totalActive}</h3>
+          </div>
+          <p className="text-[10px] text-zinc-600 font-sans">Currently in running inventory</p>
+        </div>
+
+        {/* Out of Stock Widget */}
+        <div className="glass-card bg-[#191715]/40 border border-[#2b2724] p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between h-28 hover:border-rose-900/30 transition-all group">
+          <div className={`absolute top-2 right-2 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${outOfStock > 0 ? 'bg-rose-500/10 text-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.15)]' : 'bg-zinc-950 text-zinc-500'}`}>
+            <XCircle className="w-4.5 h-4.5" />
+          </div>
+          <div>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold">Out of Stock</p>
+            <h3 className={`text-2xl font-extrabold mt-1 font-mono transition-colors ${outOfStock > 0 ? 'text-rose-400' : 'text-zinc-100'}`}>{isLoading ? '...' : outOfStock}</h3>
+          </div>
+          <p className={`text-[10px] font-sans ${outOfStock > 0 ? 'text-rose-500/70 font-semibold' : 'text-zinc-600'}`}>{outOfStock > 0 ? 'Urgent restock needed' : 'All items loaded'}</p>
+        </div>
+
+        {/* Low Stock Widget */}
+        <div className="glass-card bg-[#191715]/40 border border-[#2b2724] p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between h-28 hover:border-amber-900/30 transition-all">
+          <div className={`absolute top-2 right-2 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${lowStock > 0 ? 'bg-amber-500/10 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.15)]' : 'bg-zinc-950 text-zinc-500'}`}>
+            <AlertTriangle className="w-4.5 h-4.5" />
+          </div>
+          <div>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold">Low Stock Alerts</p>
+            <h3 className={`text-2xl font-extrabold mt-1 font-mono transition-colors ${lowStock > 0 ? 'text-amber-400' : 'text-zinc-100'}`}>{isLoading ? '...' : lowStock}</h3>
+          </div>
+          <p className="text-[10px] text-zinc-600 font-sans">Approaching minimum limits</p>
+        </div>
+
+        {/* Archived Catalog Widget */}
+        <div className="glass-card bg-[#191715]/40 border border-[#2b2724] p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between h-28 hover:border-zinc-800 transition-all">
+          <div className={`absolute top-2 right-2 w-8 h-8 rounded-lg flex items-center justify-center ${totalArchived > 0 ? 'bg-zinc-900 text-zinc-350 border border-zinc-800' : 'bg-zinc-950 text-zinc-500'}`}>
+            <Archive className="w-4.5 h-4.5" />
+          </div>
+          <div>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold">Archived Catalog</p>
+            <h3 className="text-2xl font-extrabold text-zinc-150 mt-1 font-mono">{isLoading ? '...' : totalArchived}</h3>
+          </div>
+          <p className="text-[10px] text-zinc-600 font-sans">Deactivated / hidden products</p>
+        </div>
+      </div>
+
+      {/* Catalog Mode Selection Tab Bar */}
+      <div className="flex border-b border-[#2b2724] gap-6">
+        <button
+          onClick={() => setCatalogMode('active')}
+          className={`pb-3.5 text-xs font-bold uppercase tracking-wider transition-all relative cursor-pointer ${
+            catalogMode === 'active' 
+              ? 'text-[#c06c3c]' 
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          <span>Active Catalog</span>
+          {catalogMode === 'active' && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#c06c3c] rounded-full animate-fadeIn"></div>
+          )}
+        </button>
+        <button
+          onClick={() => setCatalogMode('archived')}
+          className={`pb-3.5 text-xs font-bold uppercase tracking-wider transition-all relative cursor-pointer flex items-center gap-1.5 ${
+            catalogMode === 'archived' 
+              ? 'text-[#c06c3c]' 
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          <span>Archived Catalog</span>
+          {totalArchived > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#c06c3c]/15 text-[#c06c3c] border border-[#c06c3c]/20">
+              {totalArchived}
+            </span>
+          )}
+          {catalogMode === 'archived' && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#c06c3c] rounded-full animate-fadeIn"></div>
+          )}
+        </button>
+      </div>
+
       {/* Search and Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 glass-card rounded-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 glass-card bg-[#191715]/15 rounded-2xl border border-[#2b2724]">
         <div className="relative">
           <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-zinc-500">
             <Search className="w-4 h-4" />
           </span>
           <input
             type="text"
-            placeholder="Search catalog..."
+            placeholder="Search items..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl pl-10 pr-4 py-2.5 text-zinc-200 placeholder-zinc-500 text-sm outline-none transition-all duration-200"
+            className="w-full bg-zinc-950/80 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl pl-10 pr-4 py-2.5 text-zinc-200 placeholder-zinc-500 text-sm outline-none transition-all duration-200"
           />
         </div>
 
@@ -352,7 +471,8 @@ export const InventoryPage: React.FC = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-3 py-2.5 text-zinc-300 text-sm outline-none transition-all duration-200 cursor-pointer"
+            disabled={catalogMode === 'archived'}
+            className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-3 py-2.5 text-zinc-300 text-sm outline-none transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <option value="">All Statuses</option>
             <option value="instock">In Stock Only</option>
@@ -361,42 +481,43 @@ export const InventoryPage: React.FC = () => {
           </select>
         </div>
 
-        <div className="flex items-center justify-end text-zinc-500 text-xs font-mono pr-2">
-          Filtered: {filteredItems.length} / {items.length} items
+        <div className="flex items-center justify-end text-zinc-500 text-[10px] font-mono pr-2">
+          Catalog filtered: {filteredItems.length} / {items.filter(i => catalogMode === 'active' ? i.is_active !== false : i.is_active === false).length}
         </div>
       </div>
 
       {/* Catalog Table */}
-      <div className="glass-card rounded-2xl overflow-hidden">
+      <div className="glass-card bg-[#191715]/10 border border-[#2b2724] rounded-2xl overflow-hidden shadow-xl">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 text-zinc-500 gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-            <span className="text-sm font-medium">Retrieving active products...</span>
+            <Loader2 className="w-8 h-8 animate-spin text-[#c06c3c]" />
+            <span className="text-sm font-medium">Retrieving products...</span>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div className="text-center py-20 text-zinc-500">
-            <span className="text-sm font-semibold">No stock item matches current filter settings.</span>
+          <div className="text-center py-20 text-zinc-500 flex flex-col items-center justify-center gap-3">
+            <Archive className="w-8 h-8 text-zinc-650" />
+            <span className="text-sm font-semibold">No products found matching filters.</span>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-zinc-800 text-zinc-500 text-xs font-semibold uppercase tracking-wider pb-3">
-                  <th className="py-3.5 pl-6">Product</th>
-                  <th className="py-3.5">Category</th>
-                  <th className="py-3.5 text-center">Quantity</th>
-                  <th className="py-3.5">Stock Level Badge</th>
-                  <th className="py-3.5 text-center pr-6">Quick Adjust / Actions</th>
+                <tr className="border-b border-[#282421] text-zinc-500 text-[10px] font-bold uppercase tracking-widest pb-3">
+                  <th className="py-4 pl-6">Product</th>
+                  <th className="py-4">Category</th>
+                  <th className="py-4 text-center">Quantity</th>
+                  <th className="py-4">Stock Status</th>
+                  <th className="py-4 text-center pr-6">Quick Adjust / Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-900/60 text-sm text-zinc-300">
+              <tbody className="divide-y divide-[#282421]/60 text-sm text-zinc-300">
                 {filteredItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-zinc-900/30 transition-colors">
+                  <tr key={item.id} className={`transition-colors ${!item.is_active ? 'hover:bg-zinc-900/10 opacity-70' : 'hover:bg-zinc-900/30'}`}>
                     {/* Product Name */}
-                    <td className="py-3.5 pl-6 font-semibold text-zinc-200">
+                    <td className="py-3.5 pl-6 font-bold text-zinc-200">
                       <div>
                         <span>{item.name}</span>
-                        {item.notes && <span className="block text-[11px] font-normal text-zinc-500 mt-0.5 truncate max-w-[250px]">{item.notes}</span>}
+                        {item.notes && <span className="block text-[10px] font-normal text-zinc-500 font-mono mt-0.5 truncate max-w-[250px]">{item.notes}</span>}
                       </div>
                     </td>
 
@@ -407,55 +528,75 @@ export const InventoryPage: React.FC = () => {
 
                     {/* Quantity */}
                     <td className="py-3.5 text-center font-mono font-bold">
-                      <span className="text-zinc-100">{item.quantity}</span>
-                      <span className="text-[11px] font-normal text-zinc-500 ml-1 uppercase">{item.unit || 'pcs'}</span>
+                      {item.is_active ? (
+                        <>
+                          <span className="text-zinc-150 text-base">{item.quantity}</span>
+                          <span className="text-[10px] font-normal text-zinc-500 ml-1 uppercase">{item.unit || 'pcs'}</span>
+                        </>
+                      ) : (
+                        <span className="text-zinc-500 font-normal italic">Unavailable</span>
+                      )}
                     </td>
 
                     {/* Stock Status Badge */}
                     <td className="py-3.5">
-                      {getStatusBadge(item.quantity, item.min_stock_level)}
+                      {getStatusBadge(item.quantity, item.min_stock_level, item.is_active)}
                     </td>
 
                     {/* Quick Adjust & Actions */}
                     <td className="py-3.5 text-center pr-6">
                       <div className="flex items-center justify-center gap-4">
-                        {/* Adjust buttons */}
-                        <div className="flex items-center gap-1.5 bg-zinc-950/60 border border-zinc-800/80 rounded-lg p-1">
-                          <button
-                            onClick={() => handleOpenAdjust(item, 'in')}
-                            title="Restock Items"
-                            className="p-1 hover:bg-emerald-500/10 text-emerald-500 hover:text-emerald-400 rounded transition-colors cursor-pointer"
-                          >
-                            <ArrowDown className="w-4 h-4" />
-                          </button>
-                          <div className="h-4 w-[1px] bg-zinc-800"></div>
-                          <button
-                            onClick={() => handleOpenAdjust(item, 'out')}
-                            title="Deduct/Release Items"
-                            disabled={item.quantity === 0}
-                            className="p-1 hover:bg-rose-500/10 text-rose-500 hover:text-rose-400 rounded transition-colors cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
-                          >
-                            <ArrowUp className="w-4 h-4" />
-                          </button>
-                        </div>
+                        {item.is_active ? (
+                          <>
+                            {/* Active inventory quick adjust options */}
+                            <div className="flex items-center gap-1 bg-[#181615] border border-[#2b2724] rounded-lg p-1">
+                              <button
+                                onClick={() => handleOpenAdjust(item, 'in')}
+                                title="Restock Items"
+                                className="p-1 hover:bg-emerald-500/10 text-emerald-500 hover:text-emerald-400 rounded transition-colors cursor-pointer"
+                              >
+                                <ArrowDown className="w-4 h-4" />
+                              </button>
+                              <div className="h-4 w-[1px] bg-[#2b2724]"></div>
+                              <button
+                                onClick={() => handleOpenAdjust(item, 'out')}
+                                title="Deduct/Release Items"
+                                disabled={item.quantity === 0}
+                                className="p-1 hover:bg-rose-500/10 text-rose-500 hover:text-rose-400 rounded transition-colors cursor-pointer disabled:opacity-35 disabled:pointer-events-none"
+                              >
+                                <ArrowUp className="w-4 h-4" />
+                              </button>
+                            </div>
 
-                        {/* Edit & Delete */}
-                        <div className="flex items-center gap-2">
+                            {/* Active Inventory detail edits & deactivation */}
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleOpenEdit(item)}
+                                title="Edit Product details"
+                                className="p-1.5 hover:bg-zinc-800 text-zinc-450 hover:text-zinc-200 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-zinc-800"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleToggleActive(item, false)}
+                                title="Archive/Deactivate Item"
+                                className="p-1.5 hover:bg-rose-500/10 text-zinc-455 hover:text-rose-450 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-zinc-800"
+                              >
+                                <EyeOff className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          /* Archived restoration options */
                           <button
-                            onClick={() => handleOpenEdit(item)}
-                            title="Edit Product"
-                            className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-zinc-800"
+                            onClick={() => handleToggleActive(item, true)}
+                            title="Reactivate Item"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#c06c3c]/10 hover:bg-[#c06c3c]/20 border border-[#c06c3c]/20 hover:border-[#c06c3c]/40 text-[#c06c3c] hover:text-[#e28a50] rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
                           >
-                            <Edit2 className="w-4 h-4" />
+                            <Undo2 className="w-3.5 h-3.5" />
+                            <span>Reactivate Item</span>
                           </button>
-                          <button
-                            onClick={() => handleDelete(item)}
-                            title="Delete Product"
-                            className="p-1.5 hover:bg-rose-500/10 text-zinc-400 hover:text-rose-400 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-zinc-800"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -469,10 +610,10 @@ export const InventoryPage: React.FC = () => {
       {/* --- ADD NEW PRODUCT MODAL --- */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg glass-card rounded-2xl overflow-hidden shadow-2xl border border-zinc-800/80 animate-scaleUp">
+          <div className="w-full max-w-lg glass-card bg-[#1d1b1a] rounded-2xl overflow-hidden shadow-2xl border border-zinc-850 animate-scaleUp">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/80">
-              <h3 className="text-lg font-bold text-zinc-100">Add New Product</h3>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#282421]">
+              <h3 className="text-base font-bold uppercase tracking-wider text-zinc-155 font-sans">Add New Product</h3>
               <button onClick={() => setShowAddModal(false)} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
@@ -506,20 +647,20 @@ export const InventoryPage: React.FC = () => {
               });
             }} className="p-6 space-y-4">
               <div>
-                <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Product Name</label>
+                <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Product Name</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Coke"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
+                  className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Category</label>
+                  <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Category</label>
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
@@ -532,49 +673,49 @@ export const InventoryPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Unit type</label>
+                  <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Unit type</label>
                   <input
                     type="text"
                     required
                     placeholder="pcs, tots, cans"
                     value={formUnit}
                     onChange={(e) => setFormUnit(e.target.value)}
-                    className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
+                    className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Starting Stock</label>
+                  <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Starting Stock</label>
                   <input
                     type="number"
                     min="0"
                     value={formQuantity}
                     onChange={(e) => setFormQuantity(e.target.value)}
-                    className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
+                    className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Min Stock Alert Limit</label>
+                  <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Min Stock Alert Limit</label>
                   <input
                     type="number"
                     min="1"
                     value={formMinStock}
                     onChange={(e) => setFormMinStock(e.target.value)}
-                    className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
+                    className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Internal Notes (Optional)</label>
+                <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Internal Notes (Optional)</label>
                 <textarea
                   placeholder="Storage or batch information..."
                   rows={2}
                   value={formNotes}
                   onChange={(e) => setFormNotes(e.target.value)}
-                  className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none resize-none transition-all"
+                  className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none resize-none transition-all"
                 />
               </div>
 
@@ -582,14 +723,14 @@ export const InventoryPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 bg-zinc-900 border border-[#2b2724] hover:border-zinc-800 text-zinc-300 rounded-lg text-sm transition-all duration-200 cursor-pointer"
+                  className="px-4 py-2.5 bg-zinc-900 border border-[#2b2724] hover:border-zinc-800 text-zinc-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={addItemMutation.isPending}
-                  className="px-4 py-2 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2.5 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer disabled:opacity-50"
                 >
                   {addItemMutation.isPending ? 'Inserting...' : 'Confirm Entry'}
                 </button>
@@ -602,10 +743,10 @@ export const InventoryPage: React.FC = () => {
       {/* --- EDIT PRODUCT DETAILS MODAL --- */}
       {showEditModal && selectedItem && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-lg glass-card rounded-2xl overflow-hidden shadow-2xl border border-zinc-800/80 animate-scaleUp">
+          <div className="w-full max-w-lg glass-card bg-[#1d1b1a] rounded-2xl overflow-hidden shadow-2xl border border-zinc-855 animate-scaleUp">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/80">
-              <h3 className="text-lg font-bold text-zinc-100">Edit Product: {selectedItem.name}</h3>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#282421]">
+              <h3 className="text-base font-bold uppercase tracking-wider text-zinc-150 font-sans">Edit Details: {selectedItem.name}</h3>
               <button onClick={() => { setShowEditModal(false); setSelectedItem(null); }} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
@@ -632,19 +773,19 @@ export const InventoryPage: React.FC = () => {
               });
             }} className="p-6 space-y-4">
               <div>
-                <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Product Name</label>
+                <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Product Name</label>
                 <input
                   type="text"
                   required
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
+                  className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Category</label>
+                  <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Category</label>
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
@@ -657,35 +798,35 @@ export const InventoryPage: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Unit type</label>
+                  <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Unit type</label>
                   <input
                     type="text"
                     required
                     value={formUnit}
                     onChange={(e) => setFormUnit(e.target.value)}
-                    className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
+                    className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Min Stock Alert Limit</label>
+                <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Min Stock Alert Limit</label>
                 <input
                   type="number"
                   min="1"
                   value={formMinStock}
                   onChange={(e) => setFormMinStock(e.target.value)}
-                  className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
+                  className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Internal Notes (Optional)</label>
+                <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Internal Notes (Optional)</label>
                 <textarea
                   rows={2}
                   value={formNotes}
                   onChange={(e) => setFormNotes(e.target.value)}
-                  className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none resize-none transition-all"
+                  className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none resize-none transition-all"
                 />
               </div>
 
@@ -693,14 +834,14 @@ export const InventoryPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => { setShowEditModal(false); setSelectedItem(null); }}
-                  className="px-4 py-2 bg-zinc-900 border border-[#2b2724] hover:border-zinc-800 text-zinc-300 rounded-lg text-sm transition-all duration-200 cursor-pointer"
+                  className="px-4 py-2.5 bg-zinc-900 border border-[#2b2724] hover:border-zinc-800 text-zinc-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={editItemMutation.isPending}
-                  className="px-4 py-2 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2.5 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer disabled:opacity-50"
                 >
                   {editItemMutation.isPending ? 'Updating...' : 'Save Changes'}
                 </button>
@@ -713,10 +854,10 @@ export const InventoryPage: React.FC = () => {
       {/* --- STOCK ADJUSTMENT (IN/OUT) MODAL --- */}
       {showAdjustModal && selectedItem && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md glass-card rounded-2xl overflow-hidden shadow-2xl border border-zinc-800/80 animate-scaleUp">
+          <div className="w-full max-w-md glass-card bg-[#1d1b1a] rounded-2xl overflow-hidden shadow-2xl border border-zinc-850 animate-scaleUp">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/80">
-              <h3 className="text-lg font-bold text-zinc-100">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#282421]">
+              <h3 className="text-base font-bold uppercase tracking-wider text-zinc-150 font-sans">
                 {adjustType === 'in' ? 'Restock Product' : 'Deduct Stock'}: {selectedItem.name}
               </h3>
               <button onClick={() => { setShowAdjustModal(false); setSelectedItem(null); resetAdjustForm(); }} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">
@@ -734,13 +875,13 @@ export const InventoryPage: React.FC = () => {
               }
               adjustStockMutation.mutate();
             }} className="p-6 space-y-4">
-              <div className="p-3 bg-zinc-950 border border-zinc-850 rounded-xl flex items-center justify-between text-sm">
-                <span className="text-zinc-400">Current Stock Quantity:</span>
+              <div className="p-3 bg-zinc-950 border border-[#2b2724] rounded-xl flex items-center justify-between text-sm">
+                <span className="text-zinc-450 font-medium">Current Stock Quantity:</span>
                 <span className="font-mono font-bold text-zinc-100">{selectedItem.quantity} {selectedItem.unit || 'pcs'}</span>
               </div>
 
               <div>
-                <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">
+                <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">
                   Adjustment Quantity ({selectedItem.unit || 'pcs'})
                 </label>
                 <input
@@ -750,17 +891,17 @@ export const InventoryPage: React.FC = () => {
                   placeholder="Enter quantity"
                   value={adjustQuantity}
                   onChange={(e) => setAdjustQuantity(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none focus:border-amber-500/60"
+                  className="w-full bg-zinc-950 border border-[#2b2724] rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none focus:border-[#c06c3c]"
                 />
               </div>
 
               <div>
-                <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Reason Code</label>
+                <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Reason Code</label>
                 {adjustType === 'in' ? (
                   <select
                     value={adjustReason}
                     onChange={(e) => setAdjustReason(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none focus:border-amber-500/60 cursor-pointer"
+                    className="w-full bg-zinc-950 border border-[#2b2724] rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none cursor-pointer focus:border-[#c06c3c]"
                   >
                     <option value="Purchase Addition">Purchase Addition</option>
                     <option value="Exchange">Exchange</option>
@@ -772,7 +913,7 @@ export const InventoryPage: React.FC = () => {
                   <select
                     value={adjustReason}
                     onChange={(e) => setAdjustReason(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none focus:border-amber-500/60 cursor-pointer"
+                    className="w-full bg-zinc-950 border border-[#2b2724] rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none cursor-pointer focus:border-[#c06c3c]"
                   >
                     <option value="Drawn to Beach Bar">Drawn to Beach Bar</option>
                     <option value="Expired">Expired</option>
@@ -784,28 +925,28 @@ export const InventoryPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Action Notes (Optional)</label>
+                <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Action Notes (Optional)</label>
                 <textarea
                   placeholder="Details of batch, staff name or reference..."
                   rows={2}
                   value={adjustNotes}
                   onChange={(e) => setAdjustNotes(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none focus:border-amber-500/60 resize-none"
+                  className="w-full bg-zinc-950 border border-[#2b2724] rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none resize-none focus:border-[#c06c3c]"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-800/80">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#282421]">
                 <button
                   type="button"
                   onClick={() => { setShowAdjustModal(false); setSelectedItem(null); resetAdjustForm(); }}
-                  className="px-4 py-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 rounded-lg text-sm transition-all duration-200 cursor-pointer"
+                  className="px-4 py-2.5 bg-zinc-900 border border-[#2b2724] hover:border-zinc-800 text-zinc-300 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={adjustStockMutation.isPending}
-                  className={`px-4 py-2 text-white rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer disabled:opacity-50 ${
+                  className={`px-4 py-2.5 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer disabled:opacity-50 ${
                     adjustType === 'in' 
                       ? 'bg-emerald-600 hover:bg-emerald-500' 
                       : 'bg-rose-600 hover:bg-rose-500'
