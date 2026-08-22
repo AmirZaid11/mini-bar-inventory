@@ -18,7 +18,6 @@ import {
   Menu, 
   X, 
   User, 
-  Wine,
   AlertTriangle,
   ListChecks,
   Sun,
@@ -122,9 +121,11 @@ const AppContent: React.FC = () => {
       <header className="md:hidden flex items-center justify-between px-6 py-4 bg-[#191715] border-b border-[#282421] sticky top-0 z-40">
         <button
           onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
-          className="flex items-center gap-2 cursor-pointer outline-none active:scale-[0.98] transition-transform"
+          className="flex items-center gap-2.5 cursor-pointer outline-none active:scale-[0.98] transition-transform"
         >
-          <Wine className="w-5 h-5 text-[#c06c3c]" />
+          <div className="w-7 h-7 rounded-md bg-[#c06c3c] flex items-center justify-center shadow-sm shrink-0 overflow-hidden">
+            <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
+          </div>
           <span className="font-extrabold text-md tracking-tight text-[#faf8f5]">Amir Warehouse</span>
         </button>
         <button
@@ -147,8 +148,8 @@ const AppContent: React.FC = () => {
             onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
             className="flex items-center gap-2.5 px-2 cursor-pointer w-full text-left outline-none active:scale-[0.98] transition-transform"
           >
-            <div className="w-8 h-8 rounded-lg bg-[#c06c3c] flex items-center justify-center shadow-sm shrink-0">
-              <Wine className="w-4.5 h-4.5 text-[#faf8f5]" />
+            <div className="w-8 h-8 rounded-lg bg-[#c06c3c] flex items-center justify-center shadow-sm shrink-0 overflow-hidden">
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
             </div>
             <span className="font-bold text-sm tracking-tight text-[#faf8f5] truncate">
               Amir Warehouse
@@ -233,8 +234,50 @@ const AppContent: React.FC = () => {
 };
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+  const [fadeOut, setFadeOut] = useState(false);
+
+  useEffect(() => {
+    // Start fading out at 1.5 seconds
+    const fadeTimer = setTimeout(() => {
+      setFadeOut(true);
+    }, 1500);
+
+    // Remove splash screen from DOM at 2.0 seconds
+    const finishTimer = setTimeout(() => {
+      setShowSplash(false);
+    }, 2000);
+
+    return () => {
+      clearTimeout(fadeTimer);
+      clearTimeout(finishTimer);
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
+      {showSplash && (
+        <div className={`fixed inset-0 bg-[#161413] flex flex-col items-center justify-center z-50 transition-opacity duration-500 ${fadeOut ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <div className="flex flex-col items-center max-w-xs text-center animate-scaleUp">
+            {/* Logo container */}
+            <div className="w-24 h-24 rounded-3xl bg-[#c06c3c] flex items-center justify-center shadow-lg border border-[#e28a50]/20 mb-6 overflow-hidden">
+              <img src="/logo.png" alt="Amir Logo" className="w-full h-full object-cover animate-pulse" />
+            </div>
+            {/* App title */}
+            <h1 className="text-lg font-bold text-zinc-100 tracking-wider font-sans mb-1">
+              Amir Warehouse
+            </h1>
+            {/* Slogan */}
+            <p className="text-[#c06c3c] font-mono text-xs uppercase tracking-widest animate-pulse">
+              "Kila mtu ako na pombe?"
+            </p>
+            {/* Loading line */}
+            <div className="w-24 h-[2px] bg-[#282421] rounded-full mt-6 overflow-hidden relative">
+              <div className="absolute top-0 bottom-0 bg-[#c06c3c] w-8 rounded-full animate-slideRight"></div>
+            </div>
+          </div>
+        </div>
+      )}
       <AppContent />
       <Toaster position="top-right" theme="dark" closeButton />
     </QueryClientProvider>

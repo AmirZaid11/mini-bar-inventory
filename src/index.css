@@ -181,3 +181,22 @@
 .divider-line {
   border-color: var(--border-color);
 }
+
+/* Custom Splash Screen Keyframe Animations */
+@keyframes slideRight {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+@keyframes scaleUp {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.animate-slideRight {
+  animation: slideRight 1.5s infinite linear;
+}
+
+.animate-scaleUp {
+  animation: scaleUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
