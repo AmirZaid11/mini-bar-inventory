@@ -112,41 +112,36 @@ export const ShortagesPage: React.FC = () => {
         ) : (
           <table className="w-full text-left border-collapse print:table print:w-full">
             <thead>
-              <tr className="border-b border-[#282421] print:border-black text-zinc-500 print:text-black text-xs font-semibold uppercase tracking-wider pb-3">
-                <th className="py-3.5 pl-6">Product</th>
-                <th className="py-3.5">Category</th>
-                <th className="py-3.5 text-center">In Stock</th>
-                <th className="py-3.5 text-center">Alert Limit</th>
-                <th className="py-3.5 text-center">Shortage Quantity</th>
-                <th className="py-3.5 pl-4 pr-6 print:table-cell hidden print:block">Order Notes / Quantity</th>
+              <tr className="border-b border-[#2b2724] print:border-black text-zinc-500 print:text-black text-[10px] font-bold uppercase tracking-widest pb-3">
+                <th className="py-4 pl-6">Product</th>
+                <th className="py-4">Category</th>
+                <th className="py-4 text-center">In Stock</th>
+                <th className="py-4 text-center">Alert Limit</th>
+                <th className="py-4 pl-4 pr-6 print:table-cell hidden print:block">Order Notes / Quantity Required</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-900/40 print:divide-black text-sm text-zinc-300 print:text-black">
+            <tbody className="divide-y divide-[#2b2724]/60 print:divide-black text-sm text-zinc-300 print:text-black">
               {shortages.map((item) => {
-                const isOut = item.quantity === 0;
-                const deficit = item.min_stock_level - item.quantity;
+                const isCritical = item.quantity < 5;
                 return (
-                  <tr key={item.id} className="hover:bg-zinc-900/10 print:hover:bg-transparent">
-                    <td className="py-3.5 pl-6 font-semibold">
+                  <tr key={item.id} className="hover:bg-zinc-900/20 print:hover:bg-transparent">
+                    <td className="py-3.5 pl-6 font-bold text-zinc-200">
                       {item.name}
                     </td>
-                    <td className="py-3.5 text-zinc-400 print:text-black">
+                    <td className="py-3.5 text-zinc-450 font-medium font-sans">
                       {item.category}
                     </td>
                     <td className="py-3.5 text-center font-mono font-bold">
-                      <span className={isOut ? 'text-rose-400 print:text-black font-extrabold' : 'text-amber-400 print:text-black'}>
+                      <span className={isCritical ? 'text-rose-400 font-extrabold' : 'text-amber-400'}>
                         {item.quantity}
                       </span>{' '}
-                      <span className="text-[11px] font-normal text-zinc-500 print:text-black uppercase">{item.unit || 'pcs'}</span>
+                      <span className="text-[10px] font-normal text-zinc-550 print:text-black uppercase">{item.unit || 'pcs'}</span>
                     </td>
-                    <td className="py-3.5 text-center font-mono text-zinc-400 print:text-black">
+                    <td className="py-3.5 text-center font-mono text-zinc-500 print:text-black">
                       {item.min_stock_level}
                     </td>
-                    <td className="py-3.5 text-center font-mono font-bold text-rose-400 print:text-black">
-                      {deficit > 0 ? `-${deficit}` : 'Out'}
-                    </td>
-                    <td className="py-3.5 pl-4 pr-6 print:table-cell hidden print:block border-l border-gray-200">
-                      <div className="h-6 w-full border-b border-gray-300"></div>
+                    <td className="py-3.5 pl-4 pr-6 print:table-cell hidden print:block border-l border-[#2b2724]/40">
+                      <div className="h-6 w-full border-b border-gray-300 print:border-black"></div>
                     </td>
                   </tr>
                 );

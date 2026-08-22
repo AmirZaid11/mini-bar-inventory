@@ -530,8 +530,10 @@ export const InventoryPage: React.FC = () => {
                     <td className="py-3.5 text-center font-mono font-bold">
                       {item.is_active ? (
                         <>
-                          <span className="text-zinc-150 text-base">{item.quantity}</span>
-                          <span className="text-[10px] font-normal text-zinc-500 ml-1 uppercase">{item.unit || 'pcs'}</span>
+                          <span className={`text-base ${item.quantity < 5 ? 'text-rose-400 font-extrabold shadow-[0_0_8px_rgba(244,63,94,0.05)]' : 'text-zinc-150'}`}>
+                            {item.quantity}
+                          </span>
+                          <span className="text-[10px] font-normal text-zinc-550 ml-1 uppercase">{item.unit || 'pcs'}</span>
                         </>
                       ) : (
                         <span className="text-zinc-500 font-normal italic">Unavailable</span>

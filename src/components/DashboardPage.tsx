@@ -199,8 +199,8 @@ export const DashboardPage: React.FC = () => {
                   </div>
                   <div className="text-right ml-4">
                     <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                      item.quantity === 0 
-                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
+                      item.quantity < 5 
+                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-[0_0_8px_rgba(244,63,94,0.05)]' 
                         : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                     }`}>
                       {item.quantity === 0 ? 'Out' : `${item.quantity} Left`}
