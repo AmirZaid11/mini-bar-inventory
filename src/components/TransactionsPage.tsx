@@ -11,7 +11,8 @@ import {
   Calendar,
   History,
   Download,
-  Loader2
+  Loader2,
+  Tag
 } from 'lucide-react';
 
 interface Transaction {
@@ -34,6 +35,7 @@ export const TransactionsPage: React.FC = () => {
   // Filters
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [reasonFilter, setReasonFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -47,6 +49,9 @@ export const TransactionsPage: React.FC = () => {
   // Extract unique reason codes for filter dropdown
   const reasons = Array.from(new Set(transactions.map(t => t.reason))).filter(Boolean);
 
+  // Extract unique categories for filter dropdown
+  const categories = Array.from(new Set(transactions.map(t => t.items?.category).filter(Boolean)));
+
   // Filter calculations
   const filteredTx = transactions.filter(tx => {
     const itemName = tx.items?.name || '';
@@ -57,6 +62,7 @@ export const TransactionsPage: React.FC = () => {
                           (tx.notes || '').toLowerCase().includes(search.toLowerCase());
                           
     const matchesType = typeFilter === '' || tx.type === typeFilter;
+    const matchesCategory = categoryFilter === '' || itemCategory === categoryFilter;
     const matchesReason = reasonFilter === '' || tx.reason === reasonFilter;
 
     // Date range filter
@@ -69,7 +75,7 @@ export const TransactionsPage: React.FC = () => {
       matchesDate = matchesDate && (isBefore(txDate, endOfDay(new Date(endDate))) || txDate.getTime() <= endOfDay(new Date(endDate)).getTime());
     }
 
-    return matchesSearch && matchesType && matchesReason && matchesDate;
+    return matchesSearch && matchesType && matchesCategory && matchesReason && matchesDate;
   });
 
   // Export to CSV
@@ -107,30 +113,30 @@ export const TransactionsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-8 animate-fadeIn">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#faf8f5] flex items-center gap-2 font-sans">
-            <History className="w-5.5 h-5.5 text-[#c06c3c]" />
-            <span>Audit Trail</span>
+          <h1 className="text-3xl font-extrabold tracking-tight text-zinc-100 font-sans flex items-center gap-2">
+            <History className="w-7 h-7 text-[#c06c3c]" />
+            <span>Audit <span className="text-[#c06c3c]">Trail</span></span>
           </h1>
-          <p className="text-zinc-400 text-sm mt-1">
-            Historical log of additions, beach bar releases, and warehouse adjustments.
+          <p className="text-zinc-500 text-xs font-mono uppercase tracking-widest mt-1">
+            Historical movements log • Restocks & releases
           </p>
         </div>
         <button
           onClick={handleExportCSV}
           disabled={filteredTx.length === 0}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 border border-[#2b2724] hover:border-zinc-800 text-zinc-300 hover:text-white rounded-xl text-sm font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 border border-[#2b2724] hover:border-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
         >
           <Download className="w-4 h-4" />
           <span>Export History CSV</span>
         </button>
       </div>
 
-      {/* Advanced Filters */}
-      <div className="space-y-4 p-4 glass-card rounded-2xl">
+      {/* Advanced Filters Panel */}
+      <div className="space-y-4 p-5 glass-card bg-[#191715]/15 border border-[#2b2724] rounded-2xl shadow-md">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Keyword Search */}
           <div className="relative">
@@ -142,7 +148,7 @@ export const TransactionsPage: React.FC = () => {
               placeholder="Search items, notes..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl pl-10 pr-4 py-2.5 text-zinc-200 placeholder-zinc-500 text-sm outline-none transition-all"
+              className="w-full bg-zinc-950/80 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl pl-10 pr-4 py-2.5 text-zinc-200 placeholder-zinc-500 text-sm outline-none transition-all"
             />
           </div>
 
@@ -154,9 +160,26 @@ export const TransactionsPage: React.FC = () => {
               onChange={(e) => setTypeFilter(e.target.value)}
               className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-3 py-2.5 text-zinc-300 text-sm outline-none cursor-pointer transition-all"
             >
-              <option value="">All Movement Types</option>
+              <option value="">All Movements</option>
               <option value="in">Restock (In)</option>
               <option value="out">Deduction (Out)</option>
+            </select>
+          </div>
+
+          {/* Category Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-zinc-500"><Tag className="w-4 h-4" /></span>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-3 py-2.5 text-zinc-300 text-sm outline-none cursor-pointer transition-all"
+            >
+              <option value="">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -168,7 +191,7 @@ export const TransactionsPage: React.FC = () => {
               onChange={(e) => setReasonFilter(e.target.value)}
               className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-3 py-2.5 text-zinc-300 text-sm outline-none cursor-pointer transition-all"
             >
-              <option value="">All Reason Codes</option>
+              <option value="">All Reasons</option>
               {reasons.map((reason) => (
                 <option key={reason} value={reason}>
                   {reason}
@@ -176,91 +199,91 @@ export const TransactionsPage: React.FC = () => {
               ))}
             </select>
           </div>
-
-          <div className="flex items-center justify-end text-zinc-500 text-xs font-mono pr-2">
-            Logs Found: {filteredTx.length} / {transactions.length}
-          </div>
         </div>
 
         {/* Date Filters Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-3 border-t border-[#282421]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-[#2b2724]">
           <div className="flex items-center gap-2">
-            <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider min-w-[70px]">From:</span>
+            <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider min-w-[50px] font-mono">From:</span>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-3 py-2 text-zinc-300 text-xs outline-none transition-all"
+              className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-3 py-2 text-zinc-300 text-xs outline-none transition-all cursor-pointer"
             />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider min-w-[70px]">To:</span>
+            <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider min-w-[50px] font-mono">To:</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-3 py-2 text-zinc-300 text-xs outline-none transition-all"
+              className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-3 py-2 text-zinc-300 text-xs outline-none transition-all cursor-pointer"
             />
           </div>
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-between sm:justify-end gap-4">
             {(startDate || endDate) && (
               <button
                 onClick={() => { setStartDate(''); setEndDate(''); }}
-                className="text-xs text-[#c06c3c] hover:text-[#a6562a] underline cursor-pointer"
+                className="text-xs text-[#c06c3c] hover:text-[#a6562a] underline cursor-pointer font-bold"
               >
-                Clear Date Filters
+                Clear Date range
               </button>
             )}
+            <div className="text-zinc-500 text-[10px] font-mono pl-2">
+              Audits loaded: {filteredTx.length} / {transactions.length}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Log list / Table */}
-      <div className="glass-card rounded-2xl overflow-hidden border border-[#282421]">
+      <div className="glass-card bg-[#191715]/10 border border-[#2b2724] rounded-2xl overflow-hidden shadow-xl">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-zinc-500 gap-3">
+          <div className="flex flex-col items-center justify-center py-20 text-zinc-550 gap-3">
             <Loader2 className="w-8 h-8 animate-spin text-[#c06c3c]" />
-            <span className="text-sm font-medium">Extracting transactional history...</span>
+            <span className="text-sm font-semibold tracking-wider font-mono">Extracting audit trail history...</span>
           </div>
         ) : filteredTx.length === 0 ? (
-          <div className="text-center py-20 text-zinc-500">
-            <span className="text-sm font-semibold">No transactions match the selected criteria.</span>
+          <div className="text-center py-20 text-zinc-500 flex flex-col items-center gap-3">
+            <History className="w-8 h-8 text-zinc-650" />
+            <span className="text-sm font-semibold">No movements recorded under selected parameters.</span>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-[#282421] text-zinc-500 text-xs font-semibold uppercase tracking-wider pb-3">
-                  <th className="py-3.5 pl-6">Product</th>
-                  <th className="py-3.5">Category</th>
-                  <th className="py-3.5">Type</th>
-                  <th className="py-3.5 text-center">Adjustment</th>
-                  <th className="py-3.5">Reason Code</th>
-                  <th className="py-3.5 pl-4">Details / Notes</th>
-                  <th className="py-3.5 text-right pr-6">Timestamp</th>
+                <tr className="border-b border-[#2b2724] text-zinc-500 text-[10px] font-bold uppercase tracking-widest pb-3">
+                  <th className="py-4 pl-6">Product</th>
+                  <th className="py-4">Category</th>
+                  <th className="py-4">Type</th>
+                  <th className="py-4 text-center">Adjustment</th>
+                  <th className="py-4">Reason Code</th>
+                  <th className="py-4 pl-4">Details / Notes</th>
+                  <th className="py-4 text-right pr-6">Timestamp</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-900/40 text-sm text-zinc-300">
+              <tbody className="divide-y divide-[#2b2724]/60 text-sm text-zinc-300">
                 {filteredTx.map((tx) => {
                   const isAdd = tx.type === 'in';
                   return (
-                    <tr key={tx.id} className="hover:bg-zinc-900/20 transition-colors">
+                    <tr key={tx.id} className="hover:bg-zinc-900/30 transition-colors">
                       {/* Product Name */}
-                      <td className="py-3.5 pl-6 font-semibold text-zinc-200">
-                        {tx.items?.name || 'Deleted Product'}
+                      <td className="py-3.5 pl-6 font-bold text-zinc-200">
+                        {tx.items?.name || <span className="text-zinc-600 font-normal italic">Deleted Product</span>}
                       </td>
 
                       {/* Category */}
-                      <td className="py-3.5 text-zinc-400">
+                      <td className="py-3.5 text-zinc-450 font-medium">
                         {tx.items?.category || 'N/A'}
                       </td>
 
                       {/* Movement Type */}
                       <td className="py-3.5">
-                        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
                           isAdd 
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/10' 
-                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/10'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/10' 
+                            : 'bg-rose-500/10 text-rose-400 border-rose-500/10'
                         }`}>
                           {isAdd ? (
                             <>
@@ -283,13 +306,13 @@ export const TransactionsPage: React.FC = () => {
 
                       {/* Reason */}
                       <td className="py-3.5">
-                        <span className="bg-[#181615] px-2 py-1 rounded-md text-xs border border-[#2b2724] text-zinc-300 font-medium">
+                        <span className="bg-[#181615] px-2.5 py-1 rounded-lg text-xs border border-[#2b2724] text-zinc-300 font-semibold shadow-sm">
                           {tx.reason || 'Manual Adjustment'}
                         </span>
                       </td>
 
                       {/* Notes */}
-                      <td className="py-3.5 pl-4 text-zinc-500 max-w-[200px] truncate" title={tx.notes}>
+                      <td className="py-3.5 pl-4 text-zinc-500 max-w-[200px] truncate font-mono text-[11px]" title={tx.notes}>
                         {tx.notes || '—'}
                       </td>
 

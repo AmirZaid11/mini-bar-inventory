@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { useStore } from './store/useStore';
 import { LoginPage } from './components/LoginPage';
@@ -69,6 +69,7 @@ const HeaderBar: React.FC = () => {
 };
 
 const AppContent: React.FC = () => {
+  const db = useStore((state) => state.db);
   const token = useStore((state) => state.token);
   const activeTab = useStore((state) => state.activeTab);
   const setActiveTab = useStore((state) => state.setActiveTab);
@@ -81,6 +82,15 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     initTheme();
   }, [initTheme]);
+
+  // Fetch Items to compute shortage metrics live
+  const { data: items = [] } = useQuery({
+    queryKey: ['items'],
+    queryFn: () => db.getItems(false),
+    enabled: !!token,
+  });
+
+  const shortagesCount = items.filter(i => i.quantity <= i.min_stock_level).length;
 
   // If not authenticated, force login screen
   if (!token) {
@@ -178,6 +188,11 @@ const AppContent: React.FC = () => {
                 >
                   <Icon className="w-4.5 h-4.5" />
                   <span>{item.label}</span>
+                  {item.id === 'shortages' && shortagesCount > 0 && (
+                    <span className="ml-auto px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-500/10 text-rose-400 border border-rose-500/15 shadow-[0_0_10px_rgba(244,63,94,0.1)]">
+                      {shortagesCount}
+                    </span>
+                  )}
                 </button>
               );
             })}

@@ -5,13 +5,13 @@ import { toast } from 'sonner';
 import { 
   ClipboardList, 
   Play, 
-  CheckSquare, 
   AlertCircle, 
   ArrowRight,
   TrendingDown,
   TrendingUp,
   Search,
-  Loader2
+  Loader2,
+  CheckCircle
 } from 'lucide-react';
 
 interface Item {
@@ -25,7 +25,7 @@ interface Item {
 interface AuditRowState {
   itemId: string;
   expected: number;
-  physical: string; // string type to support empty input field easily
+  physical: string; 
 }
 
 export const AuditsPage: React.FC = () => {
@@ -39,10 +39,10 @@ export const AuditsPage: React.FC = () => {
   // Search filter
   const [search, setSearch] = useState('');
 
-  // Fetch Items
+  // Fetch Items (Active items only for audit)
   const { data: items = [], isLoading } = useQuery<Item[]>({
     queryKey: ['items'],
-    queryFn: () => db.getItems(),
+    queryFn: () => db.getItems(false),
   });
 
   // Start new stocktake
@@ -50,11 +50,11 @@ export const AuditsPage: React.FC = () => {
     const initialRows = items.map(item => ({
       itemId: item.id,
       expected: item.quantity,
-      physical: '' // blank by default
+      physical: '' 
     }));
     setAuditRows(initialRows);
     setSessionActive(true);
-    toast.info('Stocktake session started. Enter physical counts.');
+    toast.info('Physical stocktake session initialized.');
   };
 
   // Update physical count input
@@ -64,7 +64,7 @@ export const AuditsPage: React.FC = () => {
     );
   };
 
-  // Pre-fill all blank fields with expected quantity (shortcut helper)
+  // Pre-fill all blank fields with expected quantity
   const handleFillExpected = () => {
     setAuditRows(prev =>
       prev.map(row => (row.physical === '' ? { ...row, physical: String(row.expected) } : row))
@@ -81,7 +81,6 @@ export const AuditsPage: React.FC = () => {
   // Batch update stock audit mutation
   const submitAuditMutation = useMutation({
     mutationFn: async () => {
-      // Find rows that have a physical count entered
       const auditedRows = auditRows.filter(r => r.physical !== '');
       if (auditedRows.length === 0) throw new Error('No physical counts entered.');
 
@@ -151,74 +150,77 @@ export const AuditsPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-zinc-500 gap-3">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-zinc-550 gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-[#c06c3c]" />
-        <span>Loading warehouse items for audit...</span>
+        <span className="text-sm font-semibold tracking-wider font-mono">Loading warehouse items for audit...</span>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-8 animate-fadeIn">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-[#faf8f5] flex items-center gap-2 font-sans">
-          <ClipboardList className="w-5.5 h-5.5 text-[#c06c3c]" />
-          <span>Discrepancy Audits (Stocktake)</span>
+        <h1 className="text-3xl font-extrabold tracking-tight text-[#faf8f5] flex items-center gap-2.5 font-sans">
+          <ClipboardList className="w-7 h-7 text-[#c06c3c]" />
+          <span>Discrepancy <span className="text-[#c06c3c]">Audits</span></span>
         </h1>
-        <p className="text-zinc-400 text-sm mt-1">
-          Start physical audit sessions, record warehouse hand-counts, and let the system correct balances automatically.
+        <p className="text-zinc-500 text-xs font-mono uppercase tracking-widest mt-1">
+          Physical stocktakes • Automatic inventory correction
         </p>
       </div>
 
       {/* --- INITIAL LANDING STATE --- */}
       {!sessionActive ? (
-        <div className="p-10 glass-card rounded-2xl text-center space-y-6 max-w-2xl mx-auto border border-[#282421]">
-          <div className="w-16 h-16 rounded-full bg-zinc-950/60 border border-[#2b2724] flex items-center justify-center mx-auto text-zinc-400">
-            <ClipboardList className="w-8 h-8" />
+        <div className="p-10 glass-card bg-[#191715]/40 backdrop-blur-md rounded-3xl text-center space-y-6 max-w-2xl mx-auto border border-[#2b2724] shadow-2xl relative overflow-hidden">
+          {/* Ambient Glow */}
+          <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-48 bg-[#c06c3c]/5 rounded-full blur-[80px]"></div>
+          
+          <div className="w-16 h-16 rounded-2xl bg-zinc-950 border border-zinc-900 flex items-center justify-center mx-auto text-[#c06c3c] shadow-inner relative z-10">
+            <ClipboardList className="w-7 h-7" />
           </div>
-          <div className="space-y-2">
-            <h3 className="text-base font-bold text-zinc-100">Ready to audit?</h3>
-            <p className="text-zinc-400 text-xs leading-relaxed max-w-md mx-auto">
-              Starting a stocktake freezes a snapshot of your expected warehouse items. 
-              Entering physical hand-counts will instantly update database levels and log discrepancy trails in the Audit Log.
+          <div className="space-y-2 relative z-10">
+            <h3 className="text-lg font-bold text-zinc-150">Ready to audit?</h3>
+            <p className="text-zinc-500 text-xs leading-relaxed max-w-md mx-auto">
+              Starting an audit freezes a snapshot of your expected warehouse items. 
+              Entering physical counts will instantly resolve variances, update database totals, and log adjustment trails.
             </p>
           </div>
           <button
             onClick={handleStartSession}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-xl text-sm font-semibold transition-all cursor-pointer shadow-sm"
+            className="inline-flex items-center gap-2 px-6 py-3.5 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-md relative z-10"
           >
             <Play className="w-4 h-4" />
-            <span>Start New Audit Session</span>
+            <span>Start Stocktake Session</span>
           </button>
         </div>
       ) : (
         /* --- ACTIVE SESSION STATE --- */
-        <div className="space-y-6">
+        <div className="space-y-8 animate-fadeIn">
           {/* Stats Bar */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 glass-card rounded-2xl border border-[#282421]">
-            <div className="text-center md:border-r border-[#282421] py-2">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Total Catalog</p>
-              <h4 className="text-lg font-extrabold mt-0.5">{totalItems} items</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-5 glass-card bg-[#191715]/20 border border-[#2b2724] rounded-2xl shadow-md">
+            <div className="text-center md:border-r border-[#2b2724]/60 py-2">
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold">Total Catalog</p>
+              <h4 className="text-xl font-extrabold text-zinc-200 mt-1 font-mono">{totalItems} items</h4>
             </div>
-            <div className="text-center md:border-r border-[#282421] py-2">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Audited (Counted)</p>
-              <h4 className="text-lg font-extrabold text-emerald-500 mt-0.5">{countedItemsCount}</h4>
+            <div className="text-center md:border-r border-[#2b2724]/60 py-2">
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold">Audited (Counted)</p>
+              <h4 className="text-xl font-extrabold text-emerald-500 mt-1 font-mono">{countedItemsCount}</h4>
             </div>
-            <div className="text-center md:border-r border-[#282421] py-2">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Pending (Uncounted)</p>
-              <h4 className="text-lg font-extrabold text-zinc-400 mt-0.5">{pendingItemsCount}</h4>
+            <div className="text-center md:border-r border-[#2b2724]/60 py-2">
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold">Pending (Uncounted)</p>
+              <h4 className="text-xl font-extrabold text-zinc-500 mt-1 font-mono">{pendingItemsCount}</h4>
             </div>
             <div className="text-center py-2">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">Discrepancies</p>
-              <h4 className={`text-lg font-extrabold mt-0.5 ${discrepanciesCount > 0 ? 'text-rose-400' : 'text-zinc-300'}`}>
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold">Discrepancies</p>
+              <h4 className={`text-xl font-extrabold mt-1 font-mono transition-colors ${discrepanciesCount > 0 ? 'text-[#c06c3c]' : 'text-zinc-400'}`}>
                 {discrepanciesCount} detected
               </h4>
             </div>
           </div>
 
           {/* Action buttons bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-zinc-950/40 border border-[#282421] rounded-2xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-zinc-950/40 border border-[#2b2724] rounded-2xl">
             {/* Quick search input */}
             <div className="relative w-full sm:max-w-xs">
               <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-zinc-500">
@@ -238,16 +240,16 @@ export const AuditsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleFillExpected}
-                className="text-xs px-3 py-2 bg-zinc-900 border border-[#2b2724] hover:border-zinc-800 text-zinc-300 hover:text-white rounded-lg transition-colors cursor-pointer"
+                className="text-[10px] font-bold uppercase tracking-wider px-3.5 py-2.5 bg-zinc-900 border border-[#2b2724] hover:border-zinc-700 text-zinc-300 hover:text-white rounded-xl transition-colors cursor-pointer"
               >
-                Fill Rest with Expected
+                Fill Remaining Expected
               </button>
               <button
                 type="button"
                 onClick={handleClearCounts}
-                className="text-xs px-3 py-2 bg-zinc-900 border border-[#2b2724] hover:border-zinc-800 text-zinc-300 hover:text-white rounded-lg transition-colors cursor-pointer"
+                className="text-[10px] font-bold uppercase tracking-wider px-3.5 py-2.5 bg-zinc-900 border border-[#2b2724] hover:border-zinc-700 text-zinc-300 hover:text-white rounded-xl transition-colors cursor-pointer"
               >
-                Clear Entered Counts
+                Clear entered counts
               </button>
               <button
                 type="button"
@@ -257,7 +259,7 @@ export const AuditsPage: React.FC = () => {
                     setAuditRows([]);
                   }
                 }}
-                className="text-xs px-3 py-2 bg-rose-950/20 hover:bg-rose-950/40 border border-rose-950/40 text-rose-400 rounded-lg transition-colors cursor-pointer"
+                className="text-[10px] font-bold uppercase tracking-wider px-3.5 py-2.5 bg-rose-950/20 hover:bg-rose-950/40 border border-rose-950/40 text-rose-400 rounded-xl transition-colors cursor-pointer"
               >
                 Cancel Session
               </button>
@@ -265,19 +267,19 @@ export const AuditsPage: React.FC = () => {
           </div>
 
           {/* Audit Rows Form table */}
-          <form onSubmit={handleSubmitAudit} className="glass-card rounded-2xl overflow-hidden border border-[#282421] p-1">
+          <form onSubmit={handleSubmitAudit} className="glass-card bg-[#191715]/10 border border-[#2b2724] rounded-2xl overflow-hidden shadow-xl p-1">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-[#282421] text-zinc-500 text-xs font-semibold uppercase tracking-wider pb-3">
-                    <th className="py-3.5 pl-6">Product</th>
-                    <th className="py-3.5">Category</th>
-                    <th className="py-3.5 text-center">Expected Stock</th>
-                    <th className="py-3.5 text-center">Physical Count</th>
-                    <th className="py-3.5 text-center pr-6">Discrepancy Status</th>
+                  <tr className="border-b border-[#2b2724] text-zinc-500 text-[10px] font-bold uppercase tracking-widest pb-3">
+                    <th className="py-4 pl-6">Product</th>
+                    <th className="py-4">Category</th>
+                    <th className="py-4 text-center">Expected Stock</th>
+                    <th className="py-4 text-center">Physical Count</th>
+                    <th className="py-4 text-center pr-6">Discrepancy Variance</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-900/40 text-sm text-zinc-300">
+                <tbody className="divide-y divide-[#2b2724]/60 text-sm text-zinc-300">
                   {filteredAuditRows.map((row) => {
                     const item = items.find(i => i.id === row.itemId)!;
                     const phys = parseInt(row.physical);
@@ -285,13 +287,13 @@ export const AuditsPage: React.FC = () => {
                     const isEntered = row.physical !== '';
 
                     return (
-                      <tr key={row.itemId} className="hover:bg-zinc-900/10 transition-colors">
+                      <tr key={row.itemId} className="hover:bg-zinc-900/30 transition-colors">
                         {/* Name */}
-                        <td className="py-3.5 pl-6 font-semibold text-zinc-200">
+                        <td className="py-3.5 pl-6 font-bold text-zinc-200">
                           {item.name}
                         </td>
                         {/* Category */}
-                        <td className="py-3.5 text-zinc-400">
+                        <td className="py-3.5 text-zinc-450 font-medium">
                           {item.category}
                         </td>
                         {/* Expected Stock */}
@@ -307,7 +309,7 @@ export const AuditsPage: React.FC = () => {
                               placeholder="Uncounted"
                               value={row.physical}
                               onChange={(e) => handleCountChange(row.itemId, e.target.value)}
-                              className="w-24 bg-[#181615] border border-[#2b2724] focus:border-[#c06c3c] outline-none rounded-lg px-2.5 py-1 text-center font-mono text-xs text-zinc-100"
+                              className="w-24 bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] outline-none rounded-xl px-2.5 py-1.5 text-center font-mono text-sm text-zinc-100 focus:ring-1 focus:ring-[#c06c3c]/20"
                             />
                             <span className="text-[10px] text-zinc-500 uppercase font-mono">{item.unit || 'pcs'}</span>
                           </div>
@@ -315,20 +317,20 @@ export const AuditsPage: React.FC = () => {
                         {/* Discrepancy Status Badge */}
                         <td className="py-3.5 text-center pr-6">
                           {!isEntered ? (
-                            <span className="inline-flex text-[10px] text-zinc-500 font-mono italic">Pending Count</span>
+                            <span className="inline-flex text-[10px] text-zinc-600 font-mono italic">Pending Count</span>
                           ) : discrepancy === 0 ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/10">
-                              <CheckSquare className="w-3.5 h-3.5" />
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/10">
+                              <CheckCircle className="w-3.5 h-3.5" />
                               <span>Match</span>
                             </span>
                           ) : (
-                            <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
                               discrepancy > 0 
-                                ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/10' 
-                                : 'bg-rose-500/10 text-rose-400 border-rose-500/10'
+                                ? 'bg-[#c06c3c]/10 text-[#c06c3c] border-[#c06c3c]/20' 
+                                : 'bg-rose-500/10 text-rose-400 border border-rose-500/15 shadow-[0_0_10px_rgba(244,63,94,0.05)]'
                             }`}>
                               {discrepancy > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                              <span>{discrepancy > 0 ? `+${discrepancy}` : discrepancy} units</span>
+                              <span>{discrepancy > 0 ? `+${discrepancy}` : discrepancy} {item.unit || 'pcs'}</span>
                             </span>
                           )}
                         </td>
@@ -340,25 +342,25 @@ export const AuditsPage: React.FC = () => {
             </div>
 
             {/* Form actions footer */}
-            <div className="p-4 border-t border-[#282421] bg-zinc-950/20 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-2 text-xs text-zinc-400">
+            <div className="p-4 border-t border-[#2b2724] bg-zinc-950/20 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-2 text-xs text-zinc-500">
                 <AlertCircle className="w-4 h-4 text-[#c06c3c]" />
                 <span>Auditing {countedItemsCount} / {totalItems} items. Uncounted items will remain unchanged.</span>
               </div>
               <button
                 type="submit"
                 disabled={countedItemsCount === 0 || submitAuditMutation.isPending}
-                className="px-6 py-2.5 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] font-bold rounded-xl text-sm transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                className="px-6 py-3 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] font-extrabold rounded-xl text-xs uppercase tracking-widest transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md"
               >
                 {submitAuditMutation.isPending ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-4.5 h-4.5 animate-spin" />
                     <span>Submitting Audit...</span>
                   </>
                 ) : (
                   <>
-                    <ArrowRight className="w-4 h-4" />
-                    <span>Submit Audit Session ({countedItemsCount} items)</span>
+                    <ArrowRight className="w-4.5 h-4.5" />
+                    <span>Submit Audit ({countedItemsCount} items)</span>
                   </>
                 )}
               </button>
