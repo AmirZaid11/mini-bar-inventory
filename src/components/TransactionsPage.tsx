@@ -40,6 +40,26 @@ export const TransactionsPage: React.FC = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  const setDatePreset = (preset: 'today' | 'week' | 'month' | 'all') => {
+    const today = new Date();
+    if (preset === 'today') {
+      const start = format(today, 'yyyy-MM-dd');
+      setStartDate(start);
+      setEndDate(start);
+    } else if (preset === 'week') {
+      const start = format(new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+      setStartDate(start);
+      setEndDate(format(today, 'yyyy-MM-dd'));
+    } else if (preset === 'month') {
+      const start = format(new Date(today.getFullYear(), today.getMonth(), 1), 'yyyy-MM-dd');
+      setStartDate(start);
+      setEndDate(format(today, 'yyyy-MM-dd'));
+    } else {
+      setStartDate('');
+      setEndDate('');
+    }
+  };
+
   // Fetch Transactions
   const { data: transactions = [], isLoading } = useQuery<Transaction[]>({
     queryKey: ['transactions-full'],
@@ -112,6 +132,17 @@ export const TransactionsPage: React.FC = () => {
     toast.success('Transactions CSV Export downloaded.');
   };
 
+  // Report metrics
+  const totalRestocked = filteredTx
+    .filter(t => t.type === 'in')
+    .reduce((acc, t) => acc + t.quantity, 0);
+
+  const totalReleased = filteredTx
+    .filter(t => t.type === 'out')
+    .reduce((acc, t) => acc + t.quantity, 0);
+
+  const netFlow = totalRestocked - totalReleased;
+
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Header */}
@@ -128,15 +159,89 @@ export const TransactionsPage: React.FC = () => {
         <button
           onClick={handleExportCSV}
           disabled={filteredTx.length === 0}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 border border-[#2b2724] hover:border-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 border border-[#2b2724] hover:border-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm print:hidden"
         >
           <Download className="w-4 h-4" />
           <span>Export History CSV</span>
         </button>
       </div>
 
+      {/* Quick Report Presets */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-4 glass-card bg-[#191715]/30 border border-[#2b2724] rounded-2xl print:hidden">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest font-mono mr-2">Generate Report:</span>
+          <button
+            type="button"
+            onClick={() => setDatePreset('today')}
+            className="px-3.5 py-1.5 bg-[#181615] border border-[#2b2724] hover:border-zinc-800 text-[#c06c3c] hover:text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+          >
+            Today (Daily)
+          </button>
+          <button
+            type="button"
+            onClick={() => setDatePreset('week')}
+            className="px-3.5 py-1.5 bg-[#181615] border border-[#2b2724] hover:border-zinc-800 text-[#c06c3c] hover:text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+          >
+            7 Days (Weekly)
+          </button>
+          <button
+            type="button"
+            onClick={() => setDatePreset('month')}
+            className="px-3.5 py-1.5 bg-[#181615] border border-[#2b2724] hover:border-zinc-800 text-[#c06c3c] hover:text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+          >
+            Month (Monthly)
+          </button>
+          <button
+            type="button"
+            onClick={() => setDatePreset('all')}
+            className="px-3.5 py-1.5 bg-[#181615] border border-[#2b2724] hover:border-zinc-800 text-zinc-400 hover:text-white rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer"
+          >
+            All Time
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="px-4 py-1.5 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-md"
+        >
+          Print Report
+        </button>
+      </div>
+
+      {/* On-screen Summary Report Card */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-5 glass-card bg-[#191715]/10 border border-[#2b2724] rounded-2xl shadow-inner relative overflow-hidden">
+        {/* Glow */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#c06c3c]/5 rounded-full blur-[50px] pointer-events-none"></div>
+
+        <div className="text-center md:border-r border-[#2b2724]/40 py-2">
+          <p className="text-[10px] text-zinc-550 uppercase tracking-widest font-mono font-bold">Total Operations</p>
+          <h4 className="text-2xl font-extrabold text-zinc-200 mt-1 font-mono">{filteredTx.length}</h4>
+          <p className="text-[9px] text-zinc-500 mt-1">Movements in selected period</p>
+        </div>
+
+        <div className="text-center md:border-r border-[#2b2724]/40 py-2">
+          <p className="text-[10px] text-zinc-550 uppercase tracking-widest font-mono font-bold">Restocked Units (+)</p>
+          <h4 className="text-2xl font-extrabold text-[#c06c3c] mt-1 font-mono">+{totalRestocked}</h4>
+          <p className="text-[9px] text-zinc-500 mt-1">Total added stock</p>
+        </div>
+
+        <div className="text-center md:border-r border-[#2b2724]/40 py-2">
+          <p className="text-[10px] text-zinc-550 uppercase tracking-widest font-mono font-bold">Released Units (-)</p>
+          <h4 className="text-2xl font-extrabold text-rose-400 mt-1 font-mono">-{totalReleased}</h4>
+          <p className="text-[9px] text-zinc-500 mt-1">Total drawn stock</p>
+        </div>
+
+        <div className="text-center py-2">
+          <p className="text-[10px] text-zinc-550 uppercase tracking-widest font-mono font-bold">Net Stock Flow</p>
+          <h4 className={`text-2xl font-extrabold mt-1 font-mono ${netFlow >= 0 ? 'text-[#c06c3c]' : 'text-rose-400'}`}>
+            {netFlow >= 0 ? `+${netFlow}` : netFlow}
+          </h4>
+          <p className="text-[9px] text-zinc-500 mt-1">Restocked minus released</p>
+        </div>
+      </div>
+
       {/* Advanced Filters Panel */}
-      <div className="space-y-4 p-5 glass-card bg-[#191715]/15 border border-[#2b2724] rounded-2xl shadow-md">
+      <div className="space-y-4 p-5 glass-card bg-[#191715]/15 border border-[#2b2724] rounded-2xl shadow-md print:hidden">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Keyword Search */}
           <div className="relative">

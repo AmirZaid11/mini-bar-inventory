@@ -9,7 +9,8 @@ import {
   Plus, 
   Trash2, 
   ListChecks, 
-  Loader2 
+  Loader2,
+  ShieldAlert
 } from 'lucide-react';
 
 interface Item {
@@ -27,6 +28,7 @@ interface BulkItemAdjustment {
 
 export const BulkAdjustPage: React.FC = () => {
   const db = useStore((state) => state.db);
+  const user = useStore((state) => state.user);
   const queryClient = useQueryClient();
 
   // Selected products for batch adjustments
@@ -146,6 +148,31 @@ export const BulkAdjustPage: React.FC = () => {
     setAdjustType(type);
     setAdjustReason(type === 'in' ? 'Purchase Addition' : 'Drawn to Beach Bar');
   };
+
+  if (user?.role !== 'admin') {
+    return (
+      <div className="space-y-6 animate-fadeIn">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-100 flex items-center gap-2 font-sans">
+            <ListChecks className="w-5.5 h-5.5 text-[#c06c3c]" />
+            <span>Bulk Adjustment Panel</span>
+          </h1>
+        </div>
+        <div className="p-10 glass-card bg-[#191715]/40 backdrop-blur-md rounded-3xl text-center space-y-6 max-w-2xl mx-auto border border-[#2b2724] shadow-2xl relative overflow-hidden mt-6">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-center mx-auto text-rose-400 shadow-inner relative z-10 animate-pulse">
+            <ShieldAlert className="w-7 h-7" />
+          </div>
+          <div className="space-y-2 relative z-10">
+            <h3 className="text-lg font-bold text-rose-400">Access Denied</h3>
+            <p className="text-zinc-500 text-xs leading-relaxed max-w-md mx-auto">
+              Bulk adjustment operations are restricted to Warehouse Administrators only. 
+              Viewer accounts are not authorized to access this terminal panel.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fadeIn">

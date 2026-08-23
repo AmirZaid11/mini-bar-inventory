@@ -30,6 +30,7 @@ interface AuditRowState {
 
 export const AuditsPage: React.FC = () => {
   const db = useStore((state) => state.db);
+  const user = useStore((state) => state.user);
   const queryClient = useQueryClient();
 
   // Active session flag
@@ -176,23 +177,40 @@ export const AuditsPage: React.FC = () => {
           {/* Ambient Glow */}
           <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-48 bg-[#c06c3c]/5 rounded-full blur-[80px]"></div>
           
-          <div className="w-16 h-16 rounded-2xl bg-zinc-950 border border-zinc-900 flex items-center justify-center mx-auto text-[#c06c3c] shadow-inner relative z-10">
-            <ClipboardList className="w-7 h-7" />
-          </div>
-          <div className="space-y-2 relative z-10">
-            <h3 className="text-lg font-bold text-zinc-150">Ready to audit?</h3>
-            <p className="text-zinc-500 text-xs leading-relaxed max-w-md mx-auto">
-              Starting an audit freezes a snapshot of your expected warehouse items. 
-              Entering physical counts will instantly resolve variances, update database totals, and log adjustment trails.
-            </p>
-          </div>
-          <button
-            onClick={handleStartSession}
-            className="inline-flex items-center gap-2 px-6 py-3.5 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-md relative z-10"
-          >
-            <Play className="w-4 h-4" />
-            <span>Start Stocktake Session</span>
-          </button>
+          {user?.role === 'admin' ? (
+            <>
+              <div className="w-16 h-16 rounded-2xl bg-zinc-950 border border-zinc-900 flex items-center justify-center mx-auto text-[#c06c3c] shadow-inner relative z-10">
+                <ClipboardList className="w-7 h-7" />
+              </div>
+              <div className="space-y-2 relative z-10">
+                <h3 className="text-lg font-bold text-zinc-150">Ready to audit?</h3>
+                <p className="text-zinc-500 text-xs leading-relaxed max-w-md mx-auto">
+                  Starting an audit freezes a snapshot of your expected warehouse items. 
+                  Entering physical counts will instantly resolve variances, update database totals, and log adjustment trails.
+                </p>
+              </div>
+              <button
+                onClick={handleStartSession}
+                className="inline-flex items-center gap-2 px-6 py-3.5 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-md relative z-10"
+              >
+                <Play className="w-4 h-4" />
+                <span>Start Stocktake Session</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/25 flex items-center justify-center mx-auto text-rose-450 shadow-inner relative z-10 animate-pulse">
+                <AlertCircle className="w-7 h-7" />
+              </div>
+              <div className="space-y-2 relative z-10">
+                <h3 className="text-lg font-bold text-rose-400">Audit Restricted</h3>
+                <p className="text-zinc-500 text-xs leading-relaxed max-w-md mx-auto">
+                  Physical stocktake and discrepancy adjustment operations are restricted to Warehouse Administrators only. 
+                  Viewer accounts are authorized to inspect running inventory levels and view the transaction log.
+                </p>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         /* --- ACTIVE SESSION STATE --- */

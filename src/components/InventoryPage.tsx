@@ -37,6 +37,7 @@ interface Item {
 
 export const InventoryPage: React.FC = () => {
   const db = useStore((state) => state.db);
+  const user = useStore((state) => state.user);
   const queryClient = useQueryClient();
 
   // Search & Filter state
@@ -325,13 +326,15 @@ export const InventoryPage: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={handleResetAll}
-            className="flex items-center gap-2 px-4 py-2.5 bg-rose-950/20 hover:bg-rose-900/30 border border-rose-900/30 hover:border-rose-700/40 text-rose-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Reset All Stock</span>
-          </button>
+          {user?.role === 'admin' && (
+            <button
+              onClick={handleResetAll}
+              className="flex items-center gap-2 px-4 py-2.5 bg-rose-950/20 hover:bg-rose-900/30 border border-rose-900/30 hover:border-rose-700/40 text-rose-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Reset All Stock</span>
+            </button>
+          )}
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm"
@@ -339,13 +342,15 @@ export const InventoryPage: React.FC = () => {
             <Download className="w-4 h-4" />
             <span>Export CSV</span>
           </button>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-md"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Item</span>
-          </button>
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-md"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Item</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -582,61 +587,63 @@ export const InventoryPage: React.FC = () => {
                     {/* Stock Status Badge */}
                     <td className="py-3.5">
                       {getStatusBadge(item.quantity, item.min_stock_level, item.is_active)}
-                    </td>
-
-                    {/* Quick Adjust & Actions */}
+                    </td>                    {/* Quick Adjust & Actions */}
                     <td className="py-3.5 text-center pr-6">
                       <div className="flex items-center justify-center gap-4">
-                        {item.is_active ? (
-                          <>
-                            {/* Active inventory quick adjust options */}
-                            <div className="flex items-center gap-1 bg-[#181615] border border-[#2b2724] rounded-lg p-1">
-                              <button
-                                onClick={() => handleOpenAdjust(item, 'in')}
-                                title="Restock Items"
-                                className="p-1 hover:bg-emerald-500/10 text-emerald-500 hover:text-emerald-400 rounded transition-colors cursor-pointer"
-                              >
-                                <ArrowDown className="w-4 h-4" />
-                              </button>
-                              <div className="h-4 w-[1px] bg-[#2b2724]"></div>
-                              <button
-                                onClick={() => handleOpenAdjust(item, 'out')}
-                                title="Deduct/Release Items"
-                                disabled={item.quantity === 0}
-                                className="p-1 hover:bg-rose-500/10 text-rose-500 hover:text-rose-400 rounded transition-colors cursor-pointer disabled:opacity-35 disabled:pointer-events-none"
-                              >
-                                <ArrowUp className="w-4 h-4" />
-                              </button>
-                            </div>
+                        {user?.role === 'admin' ? (
+                          item.is_active ? (
+                            <>
+                              {/* Active inventory quick adjust options */}
+                              <div className="flex items-center gap-1 bg-[#181615] border border-[#2b2724] rounded-lg p-1">
+                                <button
+                                  onClick={() => handleOpenAdjust(item, 'in')}
+                                  title="Restock Items"
+                                  className="p-1 hover:bg-emerald-500/10 text-emerald-500 hover:text-emerald-400 rounded transition-colors cursor-pointer"
+                                >
+                                  <ArrowDown className="w-4 h-4" />
+                                </button>
+                                <div className="h-4 w-[1px] bg-[#2b2724]"></div>
+                                <button
+                                  onClick={() => handleOpenAdjust(item, 'out')}
+                                  title="Deduct/Release Items"
+                                  disabled={item.quantity === 0}
+                                  className="p-1 hover:bg-rose-500/10 text-rose-500 hover:text-rose-400 rounded transition-colors cursor-pointer disabled:opacity-35 disabled:pointer-events-none"
+                                >
+                                  <ArrowUp className="w-4 h-4" />
+                                </button>
+                              </div>
 
-                            {/* Active Inventory detail edits & deactivation */}
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleOpenEdit(item)}
-                                title="Edit Product details"
-                                className="p-1.5 hover:bg-zinc-800 text-zinc-450 hover:text-zinc-200 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-zinc-800"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleToggleActive(item, false)}
-                                title="Archive/Deactivate Item"
-                                className="p-1.5 hover:bg-rose-500/10 text-zinc-455 hover:text-rose-450 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-zinc-800"
-                              >
-                                <EyeOff className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </>
+                              {/* Active Inventory detail edits & deactivation */}
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleOpenEdit(item)}
+                                  title="Edit Product details"
+                                  className="p-1.5 hover:bg-zinc-800 text-zinc-455 hover:text-zinc-200 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-zinc-800"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleToggleActive(item, false)}
+                                  title="Archive/Deactivate Item"
+                                  className="p-1.5 hover:bg-rose-500/10 text-zinc-455 hover:text-rose-455 rounded-lg transition-colors cursor-pointer border border-transparent hover:border-zinc-800"
+                                >
+                                  <EyeOff className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            /* Archived restoration options */
+                            <button
+                              onClick={() => handleToggleActive(item, true)}
+                              title="Reactivate Item"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#c06c3c]/10 hover:bg-[#c06c3c]/20 border border-[#c06c3c]/20 hover:border-[#c06c3c]/40 text-[#c06c3c] hover:text-[#e28a50] rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
+                            >
+                              <Undo2 className="w-3.5 h-3.5" />
+                              <span>Reactivate Item</span>
+                            </button>
+                          )
                         ) : (
-                          /* Archived restoration options */
-                          <button
-                            onClick={() => handleToggleActive(item, true)}
-                            title="Reactivate Item"
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#c06c3c]/10 hover:bg-[#c06c3c]/20 border border-[#c06c3c]/20 hover:border-[#c06c3c]/40 text-[#c06c3c] hover:text-[#e28a50] rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm"
-                          >
-                            <Undo2 className="w-3.5 h-3.5" />
-                            <span>Reactivate Item</span>
-                          </button>
+                          <span className="text-zinc-550 text-xs italic font-medium">Read-Only</span>
                         )}
                       </div>
                     </td>

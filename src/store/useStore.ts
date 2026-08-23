@@ -5,6 +5,12 @@ import { getFirestore } from 'firebase/firestore';
 import type { Firestore } from 'firebase/firestore';
 import { DBService } from '../services/dbService';
 
+export interface UserProfile {
+  username: string;
+  email?: string;
+  role: 'admin' | 'viewer';
+}
+
 interface AuthState {
   token: string | null;
   firebaseConfig: string | null;
@@ -13,7 +19,8 @@ interface AuthState {
   db: DBService;
   activeTab: 'dashboard' | 'inventory' | 'transactions' | 'shortages' | 'bulk_adjust' | 'audits';
   theme: 'dark' | 'light';
-  setAuth: (token: string, firebaseConfig: any) => void;
+  user: UserProfile | null;
+  setAuth: (token: string, firebaseConfig: any, user: UserProfile) => void;
   logout: () => void;
   setActiveTab: (tab: 'dashboard' | 'inventory' | 'transactions' | 'shortages' | 'bulk_adjust' | 'audits') => void;
   toggleTheme: () => void;
@@ -24,8 +31,18 @@ export const useStore = create<AuthState>((set, get) => {
   // Restore session from localStorage
   const savedToken = localStorage.getItem('amir_token');
   const savedConfigStr = localStorage.getItem('firebase_config');
+  const savedUserStr = localStorage.getItem('amir_user_profile');
   let initialApp: FirebaseApp | null = null;
   let initialFirestore: Firestore | null = null;
+  let initialUser: UserProfile | null = null;
+
+  if (savedUserStr) {
+    try {
+      initialUser = JSON.parse(savedUserStr);
+    } catch (e) {
+      console.error('Failed to parse saved user profile', e);
+    }
+  }
   
   if (savedToken && savedConfigStr) {
     try {
@@ -50,11 +67,13 @@ export const useStore = create<AuthState>((set, get) => {
     db: initialDb,
     activeTab: 'dashboard',
     theme: savedTheme,
+    user: initialUser,
 
-    setAuth: (token, firebaseConfig) => {
+    setAuth: (token, firebaseConfig, user) => {
       const configStr = JSON.stringify(firebaseConfig);
       localStorage.setItem('amir_token', token);
       localStorage.setItem('firebase_config', configStr);
+      localStorage.setItem('amir_user_profile', JSON.stringify(user));
       
       let app: FirebaseApp | null = null;
       let dbInstance: Firestore | null = null;
@@ -68,14 +87,15 @@ export const useStore = create<AuthState>((set, get) => {
       }
       
       const dbService = new DBService(dbInstance);
-      set({ token, firebaseConfig: configStr, firebaseApp: app, firestore: dbInstance, db: dbService });
+      set({ token, firebaseConfig: configStr, firebaseApp: app, firestore: dbInstance, db: dbService, user });
     },
 
     logout: () => {
       localStorage.removeItem('amir_token');
       localStorage.removeItem('firebase_config');
+      localStorage.removeItem('amir_user_profile');
       const demoDb = new DBService(null);
-      set({ token: null, firebaseConfig: null, firebaseApp: null, firestore: null, db: demoDb, activeTab: 'dashboard' });
+      set({ token: null, firebaseConfig: null, firebaseApp: null, firestore: null, db: demoDb, activeTab: 'dashboard', user: null });
     },
 
     setActiveTab: (tab) => set({ activeTab: tab }),

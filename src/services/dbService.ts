@@ -495,6 +495,47 @@ export class DBService {
     return limit ? sorted.slice(0, limit) : sorted;
   }
 
+  // --- USER PORTAL SIGNIN & SIGNUP ---
+  async findUser(email: string): Promise<any | null> {
+    if (this.isDemoMode) {
+      const users = JSON.parse(localStorage.getItem('amir_demo_users') || '[]');
+      const found = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
+      return found || null;
+    }
+
+    const usersCol = collection(this.db!, 'users');
+    const snapshot = await getDocs(usersCol);
+    let foundUser: any = null;
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data.email && data.email.toLowerCase() === email.toLowerCase()) {
+        foundUser = { id: docSnap.id, ...data };
+      }
+    });
+    return foundUser;
+  }
+
+  async createUser(newUser: { username: string; email: string; password?: string; role: 'admin' | 'viewer' }): Promise<any> {
+    if (this.isDemoMode) {
+      const users = JSON.parse(localStorage.getItem('amir_demo_users') || '[]');
+      const user = {
+        id: `demo-user-${Date.now()}`,
+        ...newUser,
+        created_at: new Date().toISOString()
+      };
+      users.push(user);
+      localStorage.setItem('amir_demo_users', JSON.stringify(users));
+      return user;
+    }
+
+    const usersCol = collection(this.db!, 'users');
+    const docRef = await addDoc(usersCol, {
+      ...newUser,
+      created_at: new Date().toISOString()
+    });
+    return { id: docRef.id, ...newUser };
+  }
+
   // Helper to log transaction in demo mode
   private async logTransaction(tx: Omit<Transaction, 'id' | 'created_at'>) {
     const transactions = JSON.parse(localStorage.getItem('amir_demo_transactions') || '[]');

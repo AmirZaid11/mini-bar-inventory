@@ -61,16 +61,26 @@
     color: inherit;
   }
 
+  html:not(.dark) .text-zinc-50,
   html:not(.dark) .text-zinc-100, 
+  html:not(.dark) .text-zinc-150,
   html:not(.dark) .text-zinc-200, 
+  html:not(.dark) .text-zinc-250,
   html:not(.dark) .text-zinc-300,
+  html:not(.dark) .text-zinc-350,
   html:not(.dark) td,
   html:not(.dark) th {
     color: var(--text-color) !important;
   }
   
   html:not(.dark) .text-zinc-400, 
-  html:not(.dark) .text-zinc-500 {
+  html:not(.dark) .text-zinc-455,
+  html:not(.dark) .text-zinc-450, 
+  html:not(.dark) .text-zinc-500,
+  html:not(.dark) .text-zinc-550,
+  html:not(.dark) .text-zinc-600,
+  html:not(.dark) .text-zinc-650,
+  html:not(.dark) .text-zinc-700 {
     color: var(--muted-text) !important;
   }
 

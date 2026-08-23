@@ -37,6 +37,7 @@ const queryClient = new QueryClient({
 const HeaderBar: React.FC = () => {
   const toggleTheme = useStore((state) => state.toggleTheme);
   const theme = useStore((state) => state.theme);
+  const user = useStore((state) => state.user);
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -48,7 +49,7 @@ const HeaderBar: React.FC = () => {
     <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#282421] pb-4 mb-6 print:hidden gap-3">
       <div className="min-w-0">
         <p className="text-[10px] text-zinc-500 font-mono tracking-widest uppercase">Warehouse Dashboard • Active Session</p>
-        <h2 className="text-sm font-bold text-zinc-100 mt-0.5">Welcome back, Ernest</h2>
+        <h2 className="text-sm font-bold text-zinc-100 mt-0.5">Welcome back, {user?.username || 'Ernest'}</h2>
       </div>
       <div className="flex items-center gap-4">
         {/* Live Date / Time */}
@@ -75,6 +76,7 @@ const AppContent: React.FC = () => {
   const setActiveTab = useStore((state) => state.setActiveTab);
   const logout = useStore((state) => state.logout);
   const initTheme = useStore((state) => state.initTheme);
+  const user = useStore((state) => state.user);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -100,7 +102,7 @@ const AppContent: React.FC = () => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'inventory', label: 'Inventory Hub', icon: Boxes },
-    { id: 'bulk_adjust', label: 'Bulk Adjust', icon: ListChecks },
+    ...(user?.role === 'admin' ? [{ id: 'bulk_adjust', label: 'Bulk Adjust', icon: ListChecks }] : []),
     { id: 'shortages', label: 'Shortages List', icon: AlertTriangle },
     { id: 'audits', label: 'Discrepancy Audits', icon: ClipboardList },
     { id: 'transactions', label: 'Audit Log', icon: History },
@@ -175,7 +177,7 @@ const AppContent: React.FC = () => {
                 <button
                   key={item.id}
                   onClick={() => {
-                    setActiveTab(item.id);
+                    setActiveTab(item.id as any);
                     setMobileMenuOpen(false);
                   }}
                   className={`
@@ -206,8 +208,10 @@ const AppContent: React.FC = () => {
               <User className="w-4 h-4 text-[#c06c3c]" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-zinc-300 truncate">Ernest</p>
-              <p className="text-[10px] text-zinc-550 font-mono uppercase tracking-wider truncate">Warehouse Admin</p>
+              <p className="text-xs font-bold text-zinc-300 truncate">{user?.username || 'Ernest'}</p>
+              <p className="text-[10px] text-zinc-550 font-mono uppercase tracking-wider truncate">
+                {user?.role === 'admin' ? 'Warehouse Admin' : 'Warehouse Staff'}
+              </p>
             </div>
           </div>
 
