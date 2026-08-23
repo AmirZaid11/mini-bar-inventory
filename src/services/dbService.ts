@@ -10,6 +10,9 @@ export interface Item {
   notes: string;
   is_active: boolean;
   created_at: string;
+  cost_price: number;
+  selling_price: number;
+  barcode?: string;
 }
 
 export interface Transaction {
@@ -199,14 +202,20 @@ export class DBService {
   private initDemoDatabase() {
     const localItems = localStorage.getItem('amir_demo_items');
     if (!localItems) {
-      // Seed initial items with quantities ranging from 0 to 12 for visual realism in demo!
-      const seeded = INITIAL_DEMO_ITEMS.map((item, idx) => ({
-        id: `demo-item-${idx}`,
-        ...item,
-        quantity: idx % 7 === 0 ? 0 : idx % 5 === 0 ? Math.floor(Math.random() * 4) + 1 : Math.floor(Math.random() * 20) + 5,
-        is_active: true,
-        created_at: new Date(Date.now() - idx * 3600000).toISOString()
-      }));
+      const seeded = INITIAL_DEMO_ITEMS.map((item, idx) => {
+        const cost = idx % 3 === 0 ? 150 : idx % 2 === 0 ? 250 : 400; // Mock prices
+        const sell = Math.round(cost * 1.35); // Margin margin
+        return {
+          id: `demo-item-${idx}`,
+          ...item,
+          quantity: idx % 7 === 0 ? 0 : idx % 5 === 0 ? Math.floor(Math.random() * 4) + 1 : Math.floor(Math.random() * 20) + 5,
+          is_active: true,
+          cost_price: cost,
+          selling_price: sell,
+          barcode: `2026${String(idx).padStart(4, '0')}`,
+          created_at: new Date(Date.now() - idx * 3600000).toISOString()
+        };
+      });
       localStorage.setItem('amir_demo_items', JSON.stringify(seeded));
 
       // Seed initial transactions

@@ -1,8 +1,8 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useStore } from '../store/useStore';
-import { formatDistanceToNow } from 'date-fns';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { formatDistanceToNow, format } from 'date-fns';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, AreaChart, Area } from 'recharts';
 import { 
   Package, 
   Layers, 
@@ -27,10 +27,12 @@ export const DashboardPage: React.FC = () => {
   });
 
   // Fetch Transactions with Item Info
-  const { data: transactions = [], isLoading: txLoading } = useQuery({
-    queryKey: ['transactions'],
-    queryFn: () => db.getTransactions(10),
+  const { data: allTransactions = [], isLoading: txLoading } = useQuery({
+    queryKey: ['transactions-all'],
+    queryFn: () => db.getTransactions(),
   });
+
+  const transactions = allTransactions.slice(0, 10);
 
   if (itemsLoading || txLoading) {
     return (
@@ -68,6 +70,37 @@ export const DashboardPage: React.FC = () => {
 
   // Premium warm amber theme colors for the chart
   const colors = ['#c06c3c', '#d38354', '#e28a50', '#eaab7a', '#783e1d'];
+
+  // Compute 30-day Restock vs Release trend data
+  const trendData = React.useMemo(() => {
+    const today = new Date();
+    const dataMap: Record<string, { date: string; restocked: number; released: number }> = {};
+    
+    // Initialize last 30 days
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
+      const key = format(d, 'yyyy-MM-dd');
+      dataMap[key] = {
+        date: format(d, 'MMM dd'),
+        restocked: 0,
+        released: 0,
+      };
+    }
+    
+    // Aggregate transactions by date
+    allTransactions.forEach((tx) => {
+      const txDateKey = tx.created_at.split('T')[0];
+      if (dataMap[txDateKey]) {
+        if (tx.type === 'in') {
+          dataMap[txDateKey].restocked += tx.quantity;
+        } else if (tx.type === 'out') {
+          dataMap[txDateKey].released += tx.quantity;
+        }
+      }
+    });
+    
+    return Object.values(dataMap);
+  }, [allTransactions]);
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -211,6 +244,40 @@ export const DashboardPage: React.FC = () => {
               ))
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Stock Flow Trend Chart */}
+      <div className="glass-card bg-[#191715]/10 border border-[#2b2724] rounded-2xl p-6 shadow-xl">
+        <div className="flex items-center gap-2 mb-6">
+          <Activity className="w-5 h-5 text-[#c06c3c]" />
+          <h2 className="text-lg font-bold text-zinc-150 font-sans">Stock Flow Trend (Last 30 Days)</h2>
+        </div>
+        <div className="h-[260px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorRestocked" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                </linearGradient>
+                <linearGradient id="colorReleased" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#25211e" vertical={false} />
+              <XAxis dataKey="date" stroke="#70655d" fontSize={10} fontWeight="bold" tickLine={false} axisLine={false} />
+              <YAxis stroke="#70655d" fontSize={10} fontWeight="bold" tickLine={false} axisLine={false} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#181615', borderColor: '#2b2724', borderRadius: '12px' }}
+                labelStyle={{ color: '#8c8278', fontWeight: 'bold', fontSize: 11 }}
+                itemStyle={{ fontSize: 12 }}
+              />
+              <Area type="monotone" dataKey="restocked" name="Restocked (+)" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorRestocked)" />
+              <Area type="monotone" dataKey="released" name="Released (-)" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorReleased)" />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
       </div>
 

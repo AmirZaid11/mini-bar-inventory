@@ -14,13 +14,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 
-interface Item {
-  id: string;
-  name: string;
-  category: string;
-  quantity: number;
-  unit: string;
-}
+import type { Item } from '../services/dbService';
 
 interface AuditRowState {
   itemId: string;
@@ -149,6 +143,18 @@ export const AuditsPage: React.FC = () => {
     return !isNaN(phys) && phys !== r.expected;
   }).length;
 
+  const netFinancialVariance = React.useMemo(() => {
+    return auditRows.reduce((acc, row) => {
+      if (row.physical === '') return acc;
+      const phys = parseInt(row.physical);
+      if (isNaN(phys)) return acc;
+      const discrepancy = phys - row.expected;
+      const item = items.find(i => i.id === row.itemId);
+      const costPrice = item?.cost_price || 0;
+      return acc + (discrepancy * costPrice);
+    }, 0);
+  }, [auditRows, items]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-zinc-550 gap-3">
@@ -216,23 +222,29 @@ export const AuditsPage: React.FC = () => {
         /* --- ACTIVE SESSION STATE --- */
         <div className="space-y-8 animate-fadeIn">
           {/* Stats Bar */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-5 glass-card bg-[#191715]/20 border border-[#2b2724] rounded-2xl shadow-md">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-5 glass-card bg-[#191715]/20 border border-[#2b2724] rounded-2xl shadow-md">
             <div className="text-center md:border-r border-[#2b2724]/60 py-2">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold">Total Catalog</p>
+              <p className="text-[10px] text-zinc-550 uppercase tracking-widest font-mono font-bold">Total Catalog</p>
               <h4 className="text-xl font-extrabold text-zinc-200 mt-1 font-mono">{totalItems} items</h4>
             </div>
             <div className="text-center md:border-r border-[#2b2724]/60 py-2">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold">Audited (Counted)</p>
+              <p className="text-[10px] text-zinc-550 uppercase tracking-widest font-mono font-bold">Audited (Counted)</p>
               <h4 className="text-xl font-extrabold text-emerald-500 mt-1 font-mono">{countedItemsCount}</h4>
             </div>
             <div className="text-center md:border-r border-[#2b2724]/60 py-2">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold">Pending (Uncounted)</p>
-              <h4 className="text-xl font-extrabold text-zinc-500 mt-1 font-mono">{pendingItemsCount}</h4>
+              <p className="text-[10px] text-zinc-550 uppercase tracking-widest font-mono font-bold">Pending (Uncounted)</p>
+              <h4 className="text-xl font-extrabold text-zinc-550 mt-1 font-mono">{pendingItemsCount}</h4>
+            </div>
+            <div className="text-center md:border-r border-[#2b2724]/60 py-2">
+              <p className="text-[10px] text-zinc-550 uppercase tracking-widest font-mono font-bold">Discrepancies</p>
+              <h4 className={`text-xl font-extrabold mt-1 font-mono transition-colors ${discrepanciesCount > 0 ? 'text-[#c06c3c]' : 'text-zinc-400'}`}>
+                {discrepanciesCount}
+              </h4>
             </div>
             <div className="text-center py-2">
-              <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-mono font-bold">Discrepancies</p>
-              <h4 className={`text-xl font-extrabold mt-1 font-mono transition-colors ${discrepanciesCount > 0 ? 'text-[#c06c3c]' : 'text-zinc-400'}`}>
-                {discrepanciesCount} detected
+              <p className="text-[10px] text-zinc-550 uppercase tracking-widest font-mono font-bold">Net Fin. Impact</p>
+              <h4 className={`text-xl font-extrabold mt-1 font-mono transition-colors ${netFinancialVariance > 0 ? 'text-emerald-400' : netFinancialVariance < 0 ? 'text-rose-455' : 'text-zinc-400'}`}>
+                {netFinancialVariance >= 0 ? `+$${netFinancialVariance.toFixed(2)}` : `-$${Math.abs(netFinancialVariance).toFixed(2)}`}
               </h4>
             </div>
           </div>
@@ -335,20 +347,24 @@ export const AuditsPage: React.FC = () => {
                         {/* Discrepancy Status Badge */}
                         <td className="py-3.5 text-center pr-6">
                           {!isEntered ? (
-                            <span className="inline-flex text-[10px] text-zinc-600 font-mono italic">Pending Count</span>
+                            <span className="inline-flex text-[10px] text-zinc-650 font-mono italic">Pending Count</span>
                           ) : discrepancy === 0 ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/10">
                               <CheckCircle className="w-3.5 h-3.5" />
                               <span>Match</span>
                             </span>
                           ) : (
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                            <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
                               discrepancy > 0 
                                 ? 'bg-[#c06c3c]/10 text-[#c06c3c] border-[#c06c3c]/20' 
                                 : 'bg-rose-500/10 text-rose-400 border border-rose-500/15 shadow-[0_0_10px_rgba(244,63,94,0.05)]'
                             }`}>
                               {discrepancy > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                              <span>{discrepancy > 0 ? `+${discrepancy}` : discrepancy} {item.unit || 'pcs'}</span>
+                              <span>
+                                {discrepancy > 0 
+                                  ? `+${discrepancy} (+$${(discrepancy * (item.cost_price || 0)).toFixed(2)})` 
+                                  : `${discrepancy} (-$${(Math.abs(discrepancy) * (item.cost_price || 0)).toFixed(2)})`}
+                              </span>
                             </span>
                           )}
                         </td>

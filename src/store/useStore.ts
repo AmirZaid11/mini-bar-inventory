@@ -20,11 +20,15 @@ interface AuthState {
   activeTab: 'dashboard' | 'inventory' | 'transactions' | 'shortages' | 'bulk_adjust' | 'audits';
   theme: 'dark' | 'light';
   user: UserProfile | null;
+  telegramBotToken: string | null;
+  telegramChatId: string | null;
+  enableTelegramAlerts: boolean;
   setAuth: (token: string, firebaseConfig: any, user: UserProfile) => void;
   logout: () => void;
   setActiveTab: (tab: 'dashboard' | 'inventory' | 'transactions' | 'shortages' | 'bulk_adjust' | 'audits') => void;
   toggleTheme: () => void;
   initTheme: () => void;
+  setTelegramSettings: (token: string, chatId: string, enabled: boolean) => void;
 }
 
 export const useStore = create<AuthState>((set, get) => {
@@ -59,6 +63,11 @@ export const useStore = create<AuthState>((set, get) => {
   const initialDb = new DBService(initialFirestore);
   const savedTheme = (localStorage.getItem('amir_theme') as 'dark' | 'light') || 'dark';
 
+  // Restore Telegram configurations
+  const savedTelegramToken = localStorage.getItem('amir_telegram_token');
+  const savedTelegramChatId = localStorage.getItem('amir_telegram_chat_id');
+  const savedTelegramEnabled = localStorage.getItem('amir_telegram_enabled') === 'true';
+
   return {
     token: savedToken || null,
     firebaseConfig: savedConfigStr || null,
@@ -68,6 +77,9 @@ export const useStore = create<AuthState>((set, get) => {
     activeTab: 'dashboard',
     theme: savedTheme,
     user: initialUser,
+    telegramBotToken: savedTelegramToken || null,
+    telegramChatId: savedTelegramChatId || null,
+    enableTelegramAlerts: savedTelegramEnabled,
 
     setAuth: (token, firebaseConfig, user) => {
       const configStr = JSON.stringify(firebaseConfig);
@@ -122,6 +134,13 @@ export const useStore = create<AuthState>((set, get) => {
       } else {
         document.documentElement.classList.remove('dark');
       }
+    },
+
+    setTelegramSettings: (token, chatId, enabled) => {
+      localStorage.setItem('amir_telegram_token', token);
+      localStorage.setItem('amir_telegram_chat_id', chatId);
+      localStorage.setItem('amir_telegram_enabled', enabled ? 'true' : 'false');
+      set({ telegramBotToken: token || null, telegramChatId: chatId || null, enableTelegramAlerts: enabled });
     }
   };
 });

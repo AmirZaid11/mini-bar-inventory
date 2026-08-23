@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStore } from '../store/useStore';
 import { toast } from 'sonner';
+import type { Item } from '../services/dbService';
 import { 
   Plus, 
   Search, 
@@ -20,25 +21,160 @@ import {
   EyeOff,
   Package,
   Archive,
-  Undo2
+  Undo2,
+  Camera,
+  Printer
 } from 'lucide-react';
 
-interface Item {
-  id: string;
-  name: string;
-  category: string;
-  quantity: number;
-  min_stock_level: number;
-  unit: string;
-  notes: string;
-  is_active: boolean;
-  created_at: string;
-}
+
 
 export const InventoryPage: React.FC = () => {
   const db = useStore((state) => state.db);
   const user = useStore((state) => state.user);
   const queryClient = useQueryClient();
+
+  // Telegram Settings State
+  const telegramBotToken = useStore((state) => state.telegramBotToken);
+  const telegramChatId = useStore((state) => state.telegramChatId);
+  const enableTelegramAlerts = useStore((state) => state.enableTelegramAlerts);
+  const setTelegramSettings = useStore((state) => state.setTelegramSettings);
+
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsToken, setSettingsToken] = useState(telegramBotToken || '');
+  const [settingsChatId, setSettingsChatId] = useState(telegramChatId || '');
+  const [settingsEnabled, setSettingsEnabled] = useState(enableTelegramAlerts);
+
+  // Scanner State
+  const [showScannerModal, setShowScannerModal] = useState(false);
+  const [scannerInstance, setScannerInstance] = useState<any>(null);
+
+  // Start html5-qrcode scanner
+  const startScanner = (field: 'search' | 'add' | 'edit') => {
+    setShowScannerModal(true);
+
+    setTimeout(() => {
+      import('html5-qrcode').then(({ Html5Qrcode }) => {
+        const html5QrCode = new Html5Qrcode("qr-reader");
+        setScannerInstance(html5QrCode);
+        html5QrCode.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          (decodedText) => {
+            if (field === 'search') {
+              setSearch(decodedText);
+              toast.success(`Scanned Barcode: ${decodedText}`);
+            } else if (field === 'add' || field === 'edit') {
+              setFormBarcode(decodedText);
+              toast.success(`Populated Barcode: ${decodedText}`);
+            }
+            html5QrCode.stop().then(() => {
+              setShowScannerModal(false);
+              setScannerInstance(null);
+            }).catch(err => console.error("Error stopping scanner", err));
+          },
+          () => { /* Verbose logs ignored */ }
+        ).catch(err => {
+          console.error("Scanner failed to start", err);
+          toast.error("Could not access camera. Please check permissions.");
+          setShowScannerModal(false);
+        });
+      });
+    }, 300);
+  };
+
+  const stopScanner = () => {
+    if (scannerInstance) {
+      scannerInstance.stop().then(() => {
+        setShowScannerModal(false);
+        setScannerInstance(null);
+      }).catch((err: any) => {
+        console.error("Error stopping scanner on modal close:", err);
+        setShowScannerModal(false);
+        setScannerInstance(null);
+      });
+    } else {
+      setShowScannerModal(false);
+    }
+  };
+
+  // PDF label printer sheet generator
+  const handlePrintLabels = () => {
+    import('jspdf').then(({ jsPDF }) => {
+      if (filteredItems.length === 0) {
+        toast.warning('No items in the filtered list to print labels for.');
+        return;
+      }
+
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const labelWidth = 55;
+      const labelHeight = 35;
+      const marginX = 15;
+      const marginY = 20;
+      const cols = 3;
+      const rows = 7;
+      const gapX = 10;
+      const gapY = 5;
+
+      let x = marginX;
+      let y = marginY;
+      let colCount = 0;
+      let rowCount = 0;
+
+      filteredItems.forEach((item, idx) => {
+        if (idx > 0 && idx % (cols * rows) === 0) {
+          doc.addPage();
+          x = marginX;
+          y = marginY;
+          colCount = 0;
+          rowCount = 0;
+        }
+
+        doc.setLineDashPattern([1, 1], 0);
+        doc.setDrawColor(180, 180, 180);
+        doc.rect(x, y, labelWidth, labelHeight);
+
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(30, 30, 30);
+        const splitName = doc.splitTextToSize(item.name, labelWidth - 6);
+        doc.text(splitName, x + 3, y + 6);
+
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(100, 100, 100);
+        doc.text(item.category || 'N/A', x + 3, y + 14);
+
+        doc.setFont('Courier', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`[ ${item.barcode || 'NO BARCODE'} ]`, x + 3, y + 22);
+
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(192, 108, 60);
+        doc.text(`Cost: $${(item.cost_price || 0).toFixed(2)}`, x + 3, y + 29);
+        doc.text(`Sell: $${(item.selling_price || 0).toFixed(2)}`, x + 30, y + 29);
+
+        colCount++;
+        if (colCount >= cols) {
+          colCount = 0;
+          rowCount++;
+          x = marginX;
+          y = marginY + rowCount * (labelHeight + gapY);
+        } else {
+          x = marginX + colCount * (labelWidth + gapX);
+        }
+      });
+
+      doc.save(`shelf_tags_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.success('Shelf labels PDF sheet generated.');
+    });
+  };
 
   // Search & Filter state
   const [search, setSearch] = useState('');
@@ -61,6 +197,9 @@ export const InventoryPage: React.FC = () => {
   const [formUnit, setFormUnit] = useState('pcs');
   const [formNotes, setFormNotes] = useState('');
   const [formQuantity, setFormQuantity] = useState<string>('0'); 
+  const [formCostPrice, setFormCostPrice] = useState<string>('0');
+  const [formSellingPrice, setFormSellingPrice] = useState<string>('0');
+  const [formBarcode, setFormBarcode] = useState<string>('');
 
   // Stock Adjustment Form states
   const [adjustType, setAdjustType] = useState<'in' | 'out'>('in');
@@ -134,6 +273,26 @@ export const InventoryPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['items'] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       toast.success('Stock adjusted and audit logged.');
+
+      // Low Stock Telegram Notification Alert Trigger
+      const qty = parseInt(adjustQuantity);
+      if (adjustType === 'out' && selectedItem && enableTelegramAlerts) {
+        const newQty = selectedItem.quantity - qty;
+        if (newQty <= selectedItem.min_stock_level) {
+          import('../services/notificationService').then(({ sendLowStockTelegramAlert }) => {
+            sendLowStockTelegramAlert(
+              selectedItem.name,
+              newQty,
+              selectedItem.min_stock_level,
+              telegramBotToken || '',
+              telegramChatId || ''
+            ).then(success => {
+              if (success) toast.success('Telegram low-stock notification dispatched.');
+            });
+          });
+        }
+      }
+
       setShowAdjustModal(false);
       setSelectedItem(null);
       resetAdjustForm();
@@ -170,6 +329,9 @@ export const InventoryPage: React.FC = () => {
     setFormUnit('pcs');
     setFormNotes('');
     setFormQuantity('0');
+    setFormCostPrice('0');
+    setFormSellingPrice('0');
+    setFormBarcode('');
   };
 
   const resetAdjustForm = () => {
@@ -187,6 +349,9 @@ export const InventoryPage: React.FC = () => {
     setFormMinStock(String(item.min_stock_level));
     setFormUnit(item.unit || 'pcs');
     setFormNotes(item.notes || '');
+    setFormCostPrice(String(item.cost_price || 0));
+    setFormSellingPrice(String(item.selling_price || 0));
+    setFormBarcode(item.barcode || '');
     setShowEditModal(true);
   };
 
@@ -216,7 +381,8 @@ export const InventoryPage: React.FC = () => {
     const matchesCatalogMode = catalogMode === 'active' ? item.is_active !== false : item.is_active === false;
     
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase()) || 
-                          (item.category || '').toLowerCase().includes(search.toLowerCase());
+                          (item.category || '').toLowerCase().includes(search.toLowerCase()) ||
+                          (item.barcode || '').toLowerCase().includes(search.toLowerCase());
     const matchesCategory = categoryFilter === '' || item.category === categoryFilter;
     
     let matchesStatus = true;
@@ -328,6 +494,20 @@ export const InventoryPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-3">
           {user?.role === 'admin' && (
             <button
+              onClick={() => {
+                setSettingsToken(telegramBotToken || '');
+                setSettingsChatId(telegramChatId || '');
+                setSettingsEnabled(enableTelegramAlerts);
+                setShowSettingsModal(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-350 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm"
+            >
+              <Settings className="w-4 h-4" />
+              <span>Alert Settings</span>
+            </button>
+          )}
+          {user?.role === 'admin' && (
+            <button
               onClick={handleResetAll}
               className="flex items-center gap-2 px-4 py-2.5 bg-rose-950/20 hover:bg-rose-900/30 border border-rose-900/30 hover:border-rose-700/40 text-rose-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm"
             >
@@ -337,10 +517,17 @@ export const InventoryPage: React.FC = () => {
           )}
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-350 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm"
           >
             <Download className="w-4 h-4" />
             <span>Export CSV</span>
+          </button>
+          <button
+            onClick={handlePrintLabels}
+            className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-350 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print Labels</span>
           </button>
           {user?.role === 'admin' && (
             <button
@@ -487,11 +674,19 @@ export const InventoryPage: React.FC = () => {
           </span>
           <input
             type="text"
-            placeholder="Search items..."
+            placeholder="Search items / scan barcode..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-zinc-950/80 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl pl-10 pr-4 py-2.5 text-zinc-200 placeholder-zinc-500 text-sm outline-none transition-all duration-200"
+            className="w-full bg-zinc-950/80 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl pl-10 pr-10 py-2.5 text-zinc-200 placeholder-zinc-500 text-sm outline-none transition-all duration-200"
           />
+          <button
+            type="button"
+            onClick={() => startScanner('search')}
+            title="Scan Barcode using Camera"
+            className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-[#c06c3c] hover:text-[#a6562a] transition-colors cursor-pointer"
+          >
+            <Camera className="w-4 h-4" />
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -549,6 +744,7 @@ export const InventoryPage: React.FC = () => {
                 <tr className="border-b border-[#282421] text-zinc-500 text-[10px] font-bold uppercase tracking-widest pb-3">
                   <th className="py-4 pl-6">Product</th>
                   <th className="py-4">Category</th>
+                  <th className="py-4">Unit Pricing</th>
                   <th className="py-4 text-center">Quantity</th>
                   <th className="py-4">Stock Status</th>
                   <th className="py-4 text-center pr-6">Quick Adjust / Actions</th>
@@ -568,6 +764,14 @@ export const InventoryPage: React.FC = () => {
                     {/* Category */}
                     <td className="py-3.5 text-zinc-400 font-medium">
                       {item.category}
+                    </td>
+
+                    {/* Unit Pricing */}
+                    <td className="py-3.5 text-zinc-400 font-mono text-xs">
+                      <div className="flex flex-col text-[11px] leading-tight font-semibold">
+                        <span className="text-zinc-500 font-mono">Buy: <span className="text-zinc-300 font-bold">${(item.cost_price || 0).toFixed(2)}</span></span>
+                        <span className="text-zinc-500 font-mono mt-0.5">Sell: <span className="text-[#c06c3c] font-bold">${(item.selling_price || 0).toFixed(2)}</span></span>
+                      </div>
                     </td>
 
                     {/* Quantity */}
@@ -691,6 +895,9 @@ export const InventoryPage: React.FC = () => {
                 min_stock_level: minStock,
                 unit: formUnit,
                 notes: formNotes.trim(),
+                cost_price: parseFloat(formCostPrice) || 0,
+                selling_price: parseFloat(formSellingPrice) || 0,
+                barcode: formBarcode.trim(),
                 is_active: true
               });
             }} className="p-6 space-y-4">
@@ -730,6 +937,51 @@ export const InventoryPage: React.FC = () => {
                     onChange={(e) => setFormUnit(e.target.value)}
                     className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
                   />
+                </div>
+              </div>
+
+              {/* Pricing & Barcode scanner inputs */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Cost Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formCostPrice}
+                    onChange={(e) => setFormCostPrice(e.target.value)}
+                    className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Selling Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formSellingPrice}
+                    onChange={(e) => setFormSellingPrice(e.target.value)}
+                    className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Barcode</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Optional"
+                      value={formBarcode}
+                      onChange={(e) => setFormBarcode(e.target.value)}
+                      className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] rounded-xl pl-3 pr-8 py-2.5 text-zinc-200 text-sm outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => startScanner('add')}
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-[#c06c3c]"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -818,6 +1070,9 @@ export const InventoryPage: React.FC = () => {
                 min_stock_level: minStock,
                 unit: formUnit,
                 notes: formNotes.trim(),
+                cost_price: parseFloat(formCostPrice) || 0,
+                selling_price: parseFloat(formSellingPrice) || 0,
+                barcode: formBarcode.trim()
               });
             }} className="p-6 space-y-4">
               <div>
@@ -866,6 +1121,51 @@ export const InventoryPage: React.FC = () => {
                   onChange={(e) => setFormMinStock(e.target.value)}
                   className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] focus:ring-1 focus:ring-[#c06c3c]/20 rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none transition-all"
                 />
+              </div>
+
+              {/* Edit Pricing & Barcode fields */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Cost Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formCostPrice}
+                    onChange={(e) => setFormCostPrice(e.target.value)}
+                    className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Selling Price</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formSellingPrice}
+                    onChange={(e) => setFormSellingPrice(e.target.value)}
+                    className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] rounded-xl px-4 py-2.5 text-zinc-200 text-sm outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider mb-1.5">Barcode</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Optional"
+                      value={formBarcode}
+                      onChange={(e) => setFormBarcode(e.target.value)}
+                      className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] rounded-xl pl-3 pr-8 py-2.5 text-zinc-200 text-sm outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => startScanner('edit')}
+                      className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-[#c06c3c]"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -1004,6 +1304,95 @@ export const InventoryPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md glass-card bg-[#1d1b1a] rounded-2xl overflow-hidden shadow-2xl border border-zinc-850 animate-scaleUp">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#282421]">
+              <h3 className="text-base font-bold uppercase tracking-wider text-zinc-150 font-sans">Low Stock Alert Settings</h3>
+              <button onClick={() => setShowSettingsModal(false)} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              setTelegramSettings(settingsToken.trim(), settingsChatId.trim(), settingsEnabled);
+              toast.success('System alert configurations saved.');
+              setShowSettingsModal(false);
+            }} className="p-6 space-y-4">
+              <div className="flex items-center justify-between py-2 border-b border-[#282421]/60">
+                <span className="text-xs font-bold text-zinc-300">Enable Telegram Alerts</span>
+                <input
+                  type="checkbox"
+                  checked={settingsEnabled}
+                  onChange={(e) => setSettingsEnabled(e.target.checked)}
+                  className="w-4 h-4 accent-[#c06c3c] cursor-pointer"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider">Telegram Bot Token</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 123456789:ABCdef..."
+                  value={settingsToken}
+                  onChange={(e) => setSettingsToken(e.target.value)}
+                  className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] rounded-xl px-4 py-2.5 text-zinc-200 text-xs outline-none"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-zinc-455 text-[10px] font-bold uppercase tracking-wider">Telegram Chat ID</label>
+                <input
+                  type="text"
+                  placeholder="e.g. -100123456789"
+                  value={settingsChatId}
+                  onChange={(e) => setSettingsChatId(e.target.value)}
+                  className="w-full bg-zinc-950 border border-[#2b2724] focus:border-[#c06c3c] rounded-xl px-4 py-2.5 text-zinc-200 text-xs outline-none"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#282421]">
+                <button
+                  type="button"
+                  onClick={() => setShowSettingsModal(false)}
+                  className="px-4 py-2.5 bg-zinc-900 border border-[#2b2724] text-zinc-300 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2.5 bg-[#c06c3c] hover:bg-[#a6562a] text-[#faf8f5] rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+                >
+                  Save Settings
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Barcode Camera Scanner Modal */}
+      {showScannerModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm glass-card bg-[#1d1b1a] rounded-2xl overflow-hidden shadow-2xl border border-zinc-850 animate-scaleUp">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#282421]">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-150 font-mono">Scan Barcode / QR Code</h3>
+              <button onClick={stopScanner} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 text-center space-y-4">
+              <div id="qr-reader" className="w-full h-64 bg-zinc-950 border border-zinc-900 rounded-2xl overflow-hidden shadow-inner"></div>
+              <p className="text-[10px] text-zinc-500 font-mono">Align the barcode label within the scanning region.</p>
+              <button
+                type="button"
+                onClick={stopScanner}
+                className="w-full py-2.5 bg-zinc-900 border border-[#2b2724] hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+              >
+                Close Scanner
+              </button>
+            </div>
           </div>
         </div>
       )}
