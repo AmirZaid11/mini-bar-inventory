@@ -51,6 +51,7 @@ export const LoginPage: React.FC = () => {
         if (password === '3639') {
           setAuth('demo_token', null, { username: 'Ernest', role: 'admin' });
           toast.success('Access code verified offline. Running in Demo Mode.');
+          toast.warning('⚠️ Demo Mode: Data is stored locally on this device only and will NOT sync to other devices. Configure Firebase in Netlify to enable shared data.');
           return;
         }
         toast.error(data.error || 'Incorrect access code. Please try again.');
@@ -59,12 +60,19 @@ export const LoginPage: React.FC = () => {
       }
 
       setAuth(data.token, data.firebaseConfig, { username: 'Ernest', role: 'admin' });
-      toast.success('Access code verified. Welcome back, Ernest.');
+
+      // Use the server-supplied firebaseConfigured flag to detect demo mode
+      if (!data.firebaseConfigured) {
+        toast.warning('⚠️ Demo Mode Active: Firebase is not configured in Netlify. Data is stored locally on this device only and will NOT sync across devices.');
+      } else {
+        toast.success('Access code verified. Welcome back, Ernest.');
+      }
     } catch (error: any) {
       console.error('Login error:', error);
       if (password === '3639') {
         setAuth('demo_token', null, { username: 'Ernest', role: 'admin' });
         toast.success('Access code verified offline. Running in Demo Mode.');
+        toast.warning('⚠️ Demo Mode: Data is stored locally on this device only and will NOT sync to other devices. Configure Firebase in Netlify to enable shared data.');
         return;
       }
       toast.error('An error occurred during authentication. Please check your connection.');
@@ -90,7 +98,9 @@ export const LoginPage: React.FC = () => {
       const firebaseConfig = data.firebaseConfig;
       let app = null;
       let dbInstance = null;
-      if (firebaseConfig && firebaseConfig.projectId) {
+      // Require BOTH projectId and apiKey to be non-empty strings.
+      // The Netlify function returns empty strings when env vars are unset.
+      if (firebaseConfig && firebaseConfig.projectId && firebaseConfig.apiKey) {
         app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
         dbInstance = getFirestore(app);
       }
@@ -139,6 +149,9 @@ export const LoginPage: React.FC = () => {
         const token = isDemo ? 'demo_staff_token' : `staff_session_${btoa(email + '_salt')}`;
         setAuth(token, config, { username: user.username, email: user.email, role: user.role || 'viewer' });
         toast.success(`Welcome back, ${user.username}!`);
+        if (isDemo) {
+          toast.warning('⚠️ Demo Mode: Data is stored locally on this device only and will NOT sync to other devices.');
+        }
       } else {
         // 3. Sign Up Check
         const existing = await dbService.findUser(email);
@@ -159,6 +172,9 @@ export const LoginPage: React.FC = () => {
         const token = isDemo ? 'demo_staff_token' : `staff_session_${btoa(email + '_salt')}`;
         setAuth(token, config, { username: createdUser.username, email: createdUser.email, role: 'viewer' });
         toast.success(`Account registered! Welcome to the warehouse, ${createdUser.username}.`);
+        if (isDemo) {
+          toast.warning('⚠️ Demo Mode: Data is stored locally on this device only and will NOT sync to other devices.');
+        }
       }
     } catch (err: any) {
       toast.error(err.message || 'Staff authentication failed. Check credentials and try again.');

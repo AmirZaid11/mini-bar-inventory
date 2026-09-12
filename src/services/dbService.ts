@@ -202,13 +202,15 @@ export class DBService {
   private initDemoDatabase() {
     const localItems = localStorage.getItem('amir_demo_items');
     if (!localItems) {
+      // All items start at quantity 0 — no random seeding so demo data is
+      // consistent and doesn't mislead users on new devices.
       const seeded = INITIAL_DEMO_ITEMS.map((item, idx) => {
-        const cost = idx % 3 === 0 ? 150 : idx % 2 === 0 ? 250 : 400; // Mock prices
-        const sell = Math.round(cost * 1.35); // Margin margin
+        const cost = idx % 3 === 0 ? 150 : idx % 2 === 0 ? 250 : 400;
+        const sell = Math.round(cost * 1.35);
         return {
           id: `demo-item-${idx}`,
           ...item,
-          quantity: idx % 7 === 0 ? 0 : idx % 5 === 0 ? Math.floor(Math.random() * 4) + 1 : Math.floor(Math.random() * 20) + 5,
+          quantity: 0,
           is_active: true,
           cost_price: cost,
           selling_price: sell,
@@ -217,24 +219,8 @@ export class DBService {
         };
       });
       localStorage.setItem('amir_demo_items', JSON.stringify(seeded));
-
-      // Seed initial transactions
-      const seededTx: Transaction[] = [];
-      seeded.slice(0, 15).forEach((item, idx) => {
-        if (item.quantity > 0) {
-          seededTx.push({
-            id: `demo-tx-${idx}`,
-            item_id: item.id,
-            type: 'in',
-            quantity: item.quantity,
-            reason: idx % 3 === 0 ? 'Opening Balance' : 'Purchase Restock',
-            notes: 'Demo auto-seeded record',
-            created_at: new Date(Date.now() - idx * 1000 * 3000).toISOString(),
-            items: { name: item.name, category: item.category }
-          });
-        }
-      });
-      localStorage.setItem('amir_demo_transactions', JSON.stringify(seededTx));
+      // No seed transactions — empty slate so there is no confusing mock history
+      localStorage.setItem('amir_demo_transactions', JSON.stringify([]));
     }
   }
 
@@ -315,13 +301,18 @@ export class DBService {
     if (newItem.quantity > 0) {
       try {
         const txCol = collection(this.db!, 'transactions');
+        // Bug fix: store name+category directly in the transaction doc so the
+        // transaction log always shows the correct product name, even if the
+        // item is later soft-deleted.
         await addDoc(txCol, {
           item_id: docRef.id,
           type: 'in',
           quantity: newItem.quantity,
           reason: 'Opening Balance',
           notes: 'Initialized starting quantity',
-          created_at: createdAt
+          created_at: createdAt,
+          item_name: newItem.name,
+          item_category: newItem.category
         });
       } catch (txError) {
         console.error('Failed to log transaction:', txError);
@@ -425,7 +416,10 @@ export class DBService {
         updated_at: new Date().toISOString()
       });
 
-      // Log transaction record
+      // Log transaction record — include item name/category directly in the
+      // document so the transaction log never shows "Unknown Product" even
+      // after a soft-delete.
+      const itemData = itemSnap.data();
       const txCol = collection(this.db!, 'transactions');
       const newTxRef = doc(txCol);
       transaction.set(newTxRef, {
@@ -434,7 +428,9 @@ export class DBService {
         quantity,
         reason,
         notes,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        item_name: itemData.name || '',
+        item_category: itemData.category || ''
       });
     });
   }
@@ -485,6 +481,13 @@ export class DBService {
     txSnapshot.forEach((docSnap) => {
       const data = docSnap.data();
       const itemId = data.item_id;
+      // Prefer item_name/item_category stored directly on the transaction doc
+      // (set by the fixed adjustStock/createItem), then fall back to the
+      // itemsMap lookup for older documents that pre-date the fix.
+      const resolvedItems: { name: string; category: string } | null =
+        data.item_name
+          ? { name: data.item_name, category: data.item_category || '' }
+          : itemsMap[itemId] || null;
       transactions.push({
         id: docSnap.id,
         item_id: itemId,
@@ -493,7 +496,7 @@ export class DBService {
         reason: data.reason || '',
         notes: data.notes || '',
         created_at: data.created_at,
-        items: itemsMap[itemId] || null
+        items: resolvedItems
       });
     });
 

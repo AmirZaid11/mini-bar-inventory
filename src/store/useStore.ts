@@ -51,9 +51,14 @@ export const useStore = create<AuthState>((set, get) => {
   if (savedToken && savedConfigStr) {
     try {
       const config = JSON.parse(savedConfigStr);
-      if (config && config.projectId) {
+      // Require both projectId AND apiKey to be non-empty strings.
+      // The Netlify function returns empty strings when env vars are unset,
+      // which previously caused silent fallback to demo/localStorage mode.
+      if (config && config.projectId && config.apiKey) {
         initialApp = getApps().length === 0 ? initializeApp(config) : getApp();
         initialFirestore = getFirestore(initialApp);
+      } else {
+        console.warn('[useStore] Firebase config missing projectId/apiKey — running in demo (localStorage) mode.');
       }
     } catch (e) {
       console.error('Failed to initialize restored Firebase client', e);
@@ -89,13 +94,16 @@ export const useStore = create<AuthState>((set, get) => {
       
       let app: FirebaseApp | null = null;
       let dbInstance: Firestore | null = null;
-      if (firebaseConfig && firebaseConfig.projectId) {
+      // Require both projectId AND apiKey to be valid non-empty strings.
+      if (firebaseConfig && firebaseConfig.projectId && firebaseConfig.apiKey) {
         try {
           app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
           dbInstance = getFirestore(app);
         } catch (e) {
           console.error('Failed to create Firebase client during login:', e);
         }
+      } else {
+        console.warn('[useStore] setAuth: Firebase config incomplete — running in demo (localStorage) mode.');
       }
       
       const dbService = new DBService(dbInstance);

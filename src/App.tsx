@@ -10,14 +10,14 @@ import { ShortagesPage } from './components/ShortagesPage';
 import { BulkAdjustPage } from './components/BulkAdjustPage';
 import { AuditsPage } from './components/AuditsPage';
 import { format } from 'date-fns';
-import { 
-  LayoutDashboard, 
-  Boxes, 
-  History, 
-  LogOut, 
-  Menu, 
-  X, 
-  User, 
+import {
+  LayoutDashboard,
+  Boxes,
+  History,
+  LogOut,
+  Menu,
+  X,
+  User,
   AlertTriangle,
   ListChecks,
   Sun,
@@ -182,8 +182,8 @@ const AppContent: React.FC = () => {
                   }}
                   className={`
                     w-full flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-150 cursor-pointer border
-                    ${isActive 
-                      ? 'bg-[#c06c3c]/10 text-[#c06c3c] border-[#c06c3c]/20 shadow-sm' 
+                    ${isActive
+                      ? 'bg-[#c06c3c]/10 text-[#c06c3c] border-[#c06c3c]/20 shadow-sm'
                       : 'text-zinc-550 border-transparent hover:text-zinc-200 hover:bg-zinc-950/40'
                     }
                   `}
@@ -230,7 +230,7 @@ const AppContent: React.FC = () => {
 
       {/* OVERLAY FOR MOBILE SIDEBAR */}
       {mobileMenuOpen && (
-        <div 
+        <div
           onClick={() => setMobileMenuOpen(false)}
           className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm"
         ></div>
@@ -288,7 +288,7 @@ export default function App() {
             </h1>
             {/* Slogan */}
             <p className="text-[#c06c3c] font-mono text-xs uppercase tracking-widest animate-pulse">
-              "Kila mtu ako na pombe?"
+              "Bar Zetu?"
             </p>
             {/* Loading line */}
             <div className="w-24 h-[2px] bg-[#282421] rounded-full mt-6 overflow-hidden relative">

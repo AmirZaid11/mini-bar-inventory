@@ -46,6 +46,11 @@ export const handler: Handler = async (event, context) => {
       appId: process.env.FIREBASE_APP_ID || ''
     };
 
+    // Detect whether Firebase is actually configured via env vars.
+    // This flag lets the client show a clear warning instead of silently
+    // falling back to localStorage demo mode.
+    const firebaseConfigured = !!(process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_API_KEY);
+
     // Simple session token base64 encoded
     const token = 'amir_session_' + Buffer.from(adminPassword + '_salt').toString('base64');
 
@@ -55,7 +60,8 @@ export const handler: Handler = async (event, context) => {
       body: JSON.stringify({
         success: true,
         token,
-        firebaseConfig
+        firebaseConfig,
+        firebaseConfigured
       }),
     };
   } catch (error: any) {
