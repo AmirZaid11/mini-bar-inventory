@@ -34,6 +34,37 @@ export const DashboardPage: React.FC = () => {
 
   const transactions = allTransactions.slice(0, 10);
 
+  // Compute 30-day Restock vs Release trend data (Hook called unconditionally before any early returns)
+  const trendData = React.useMemo(() => {
+    const today = new Date();
+    const dataMap: Record<string, { date: string; restocked: number; released: number }> = {};
+    
+    // Initialize last 30 days
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
+      const key = format(d, 'yyyy-MM-dd');
+      dataMap[key] = {
+        date: format(d, 'MMM dd'),
+        restocked: 0,
+        released: 0,
+      };
+    }
+    
+    // Aggregate transactions by date
+    allTransactions.forEach((tx) => {
+      const txDateKey = tx.created_at.split('T')[0];
+      if (dataMap[txDateKey]) {
+        if (tx.type === 'in') {
+          dataMap[txDateKey].restocked += tx.quantity;
+        } else if (tx.type === 'out') {
+          dataMap[txDateKey].released += tx.quantity;
+        }
+      }
+    });
+    
+    return Object.values(dataMap);
+  }, [allTransactions]);
+
   if (itemsLoading || txLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-zinc-550 gap-3">
@@ -70,37 +101,6 @@ export const DashboardPage: React.FC = () => {
 
   // Premium warm amber theme colors for the chart
   const colors = ['#c06c3c', '#d38354', '#e28a50', '#eaab7a', '#783e1d'];
-
-  // Compute 30-day Restock vs Release trend data
-  const trendData = React.useMemo(() => {
-    const today = new Date();
-    const dataMap: Record<string, { date: string; restocked: number; released: number }> = {};
-    
-    // Initialize last 30 days
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
-      const key = format(d, 'yyyy-MM-dd');
-      dataMap[key] = {
-        date: format(d, 'MMM dd'),
-        restocked: 0,
-        released: 0,
-      };
-    }
-    
-    // Aggregate transactions by date
-    allTransactions.forEach((tx) => {
-      const txDateKey = tx.created_at.split('T')[0];
-      if (dataMap[txDateKey]) {
-        if (tx.type === 'in') {
-          dataMap[txDateKey].restocked += tx.quantity;
-        } else if (tx.type === 'out') {
-          dataMap[txDateKey].released += tx.quantity;
-        }
-      }
-    });
-    
-    return Object.values(dataMap);
-  }, [allTransactions]);
 
   return (
     <div className="space-y-8 animate-fadeIn">
