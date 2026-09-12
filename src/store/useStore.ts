@@ -29,6 +29,8 @@ interface AuthState {
   toggleTheme: () => void;
   initTheme: () => void;
   setTelegramSettings: (token: string, chatId: string, enabled: boolean) => void;
+  setFirebaseConfig: (config: any) => void;
+  refreshDb: () => void;
 }
 
 export const useStore = create<AuthState>((set, get) => {
@@ -149,6 +151,23 @@ export const useStore = create<AuthState>((set, get) => {
       localStorage.setItem('amir_telegram_chat_id', chatId);
       localStorage.setItem('amir_telegram_enabled', enabled ? 'true' : 'false');
       set({ telegramBotToken: token || null, telegramChatId: chatId || null, enableTelegramAlerts: enabled });
+    },
+
+    setFirebaseConfig: (config: any) => {
+      if (!config || !config.projectId || !config.apiKey) {
+        throw new Error('Firebase configuration requires both projectId and apiKey.');
+      }
+      const app = getApps().length === 0 ? initializeApp(config) : getApp();
+      const firestore = getFirestore(app);
+      const dbService = new DBService(firestore);
+      const configStr = JSON.stringify(config);
+      localStorage.setItem('firebase_config', configStr);
+      set({ firebaseConfig: configStr, firebaseApp: app, firestore, db: dbService });
+    },
+
+    refreshDb: () => {
+      const { firestore } = get();
+      set({ db: new DBService(firestore) });
     }
   };
 });

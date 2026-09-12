@@ -190,6 +190,10 @@ export class DBService {
   private db: Firestore | null = null;
   private isDemoMode = false;
 
+  get isDemo(): boolean {
+    return this.isDemoMode;
+  }
+
   constructor(firestore: Firestore | null) {
     this.db = firestore;
     this.isDemoMode = !firestore;
@@ -599,5 +603,229 @@ export class DBService {
     if (count > 0) {
       await deleteBatch.commit();
     }
+  }
+
+  // Get local storage inventory stats
+  getLocalStats(): { itemCount: number; totalUnits: number; txCount: number } {
+    try {
+      const items: Item[] = JSON.parse(localStorage.getItem('amir_demo_items') || '[]');
+      const txs = JSON.parse(localStorage.getItem('amir_demo_transactions') || '[]');
+      const totalUnits = items.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0);
+      return {
+        itemCount: items.length,
+        totalUnits,
+        txCount: txs.length
+      };
+    } catch {
+      return { itemCount: 0, totalUnits: 0, txCount: 0 };
+    }
+  }
+
+  // Export complete database snapshot as a downloadable JSON file
+  exportBackupData(): string {
+    const localItems = localStorage.getItem('amir_demo_items') || '[]';
+    const localTx = localStorage.getItem('amir_demo_transactions') || '[]';
+    const localUsers = localStorage.getItem('amir_demo_users') || '[]';
+
+    const parsedItems: Item[] = JSON.parse(localItems);
+    const parsedTx = JSON.parse(localTx);
+    const parsedUsers = JSON.parse(localUsers);
+
+    const backup = {
+      appName: 'Amir Bar Inventory',
+      version: '2.0',
+      exportedAt: new Date().toISOString(),
+      stats: {
+        totalItems: parsedItems.length,
+        totalUnits: parsedItems.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0),
+        totalTransactions: parsedTx.length
+      },
+      items: parsedItems,
+      transactions: parsedTx,
+      users: parsedUsers
+    };
+
+    return JSON.stringify(backup, null, 2);
+  }
+
+  // Import backup data (instantly restores catalog, quantities, and logs)
+  async importBackupData(backupJson: string): Promise<{ itemsCount: number; totalUnits: number }> {
+    let data: any;
+    try {
+      data = JSON.parse(backupJson);
+    } catch (e) {
+      throw new Error('Invalid JSON file. Please ensure you selected a valid inventory backup file.');
+    }
+
+    if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
+      throw new Error('Backup file does not contain a valid products list.');
+    }
+
+    const items: Item[] = data.items;
+    const transactions = Array.isArray(data.transactions) ? data.transactions : [];
+    const users = Array.isArray(data.users) ? data.users : [];
+
+    // Always update local storage
+    localStorage.setItem('amir_demo_items', JSON.stringify(items));
+    localStorage.setItem('amir_demo_transactions', JSON.stringify(transactions));
+    if (users.length > 0) {
+      localStorage.setItem('amir_demo_users', JSON.stringify(users));
+    }
+
+    // If connected to Firebase, write items to Firestore
+    if (!this.isDemoMode && this.db) {
+      const itemsCol = collection(this.db, 'items');
+      const existingDocs = await getDocs(itemsCol);
+      const existingMap = new Map<string, string>();
+      existingDocs.forEach(d => {
+        const docData = d.data();
+        if (docData.name) {
+          existingMap.set(docData.name.toLowerCase(), d.id);
+        }
+      });
+
+      let batch = writeBatch(this.db);
+      let count = 0;
+
+      for (const item of items) {
+        const lowerName = item.name.toLowerCase();
+        const existingId = existingMap.get(lowerName);
+        const ref = existingId ? doc(itemsCol, existingId) : doc(itemsCol);
+
+        const payload = {
+          name: item.name,
+          category: item.category || 'Uncategorized',
+          quantity: Number(item.quantity) || 0,
+          min_stock_level: Number(item.min_stock_level) || 5,
+          unit: item.unit || 'pcs',
+          notes: item.notes || '',
+          is_active: item.is_active !== false,
+          cost_price: Number(item.cost_price) || 0,
+          selling_price: Number(item.selling_price) || 0,
+          barcode: item.barcode || '',
+          updated_at: new Date().toISOString()
+        };
+
+        batch.set(ref, payload, { merge: true });
+        count++;
+
+        if (count >= 400) {
+          await batch.commit();
+          batch = writeBatch(this.db);
+          count = 0;
+        }
+      }
+
+      if (count > 0) {
+        await batch.commit();
+      }
+    }
+
+    const totalUnits = items.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0);
+    return { itemsCount: items.length, totalUnits };
+  }
+
+  // Push local storage stock directly into Firebase Firestore
+  async uploadLocalToFirestore(): Promise<{ itemsMigrated: number; totalUnits: number; txMigrated: number }> {
+    if (!this.db) {
+      throw new Error('Firebase Firestore is not connected. Please configure your Firebase credentials first.');
+    }
+
+    const localItemsStr = localStorage.getItem('amir_demo_items');
+    if (!localItemsStr) {
+      throw new Error('No local inventory found on this device.');
+    }
+
+    const localItems: Item[] = JSON.parse(localItemsStr);
+    const localTxStr = localStorage.getItem('amir_demo_transactions') || '[]';
+    const localTx: Transaction[] = JSON.parse(localTxStr);
+
+    if (localItems.length === 0) {
+      throw new Error('Local inventory list is empty.');
+    }
+
+    const itemsCol = collection(this.db, 'items');
+    const existingDocs = await getDocs(itemsCol);
+    const existingMap = new Map<string, string>();
+    existingDocs.forEach(d => {
+      const docData = d.data();
+      if (docData.name) {
+        existingMap.set(docData.name.toLowerCase(), d.id);
+      }
+    });
+
+    let batch = writeBatch(this.db);
+    let count = 0;
+    let itemsMigrated = 0;
+
+    for (const item of localItems) {
+      const lowerName = item.name.toLowerCase();
+      const existingId = existingMap.get(lowerName);
+      const ref = existingId ? doc(itemsCol, existingId) : doc(itemsCol);
+
+      batch.set(ref, {
+        name: item.name,
+        category: item.category || 'Uncategorized',
+        quantity: Number(item.quantity) || 0,
+        min_stock_level: Number(item.min_stock_level) || 5,
+        unit: item.unit || 'pcs',
+        notes: item.notes || '',
+        is_active: item.is_active !== false,
+        cost_price: Number(item.cost_price) || 0,
+        selling_price: Number(item.selling_price) || 0,
+        barcode: item.barcode || '',
+        updated_at: new Date().toISOString()
+      }, { merge: true });
+
+      itemsMigrated++;
+      count++;
+
+      if (count >= 400) {
+        await batch.commit();
+        batch = writeBatch(this.db);
+        count = 0;
+      }
+    }
+
+    if (count > 0) {
+      await batch.commit();
+    }
+
+    // Migrate transactions
+    let txMigrated = 0;
+    if (localTx.length > 0) {
+      const txCol = collection(this.db, 'transactions');
+      let txBatch = writeBatch(this.db);
+      let txCount = 0;
+
+      for (const tx of localTx) {
+        const txRef = doc(txCol);
+        txBatch.set(txRef, {
+          item_id: tx.item_id,
+          type: tx.type,
+          quantity: Number(tx.quantity) || 0,
+          reason: tx.reason || 'Migration',
+          notes: tx.notes || 'Imported from local session',
+          created_at: tx.created_at || new Date().toISOString(),
+          item_name: tx.items?.name || '',
+          item_category: tx.items?.category || ''
+        });
+        txMigrated++;
+        txCount++;
+
+        if (txCount >= 400) {
+          await txBatch.commit();
+          txBatch = writeBatch(this.db);
+          txCount = 0;
+        }
+      }
+
+      if (txCount > 0) {
+        await txBatch.commit();
+      }
+    }
+
+    const totalUnits = localItems.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0);
+    return { itemsMigrated, totalUnits, txMigrated };
   }
 }

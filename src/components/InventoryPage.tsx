@@ -23,8 +23,10 @@ import {
   Archive,
   Undo2,
   Camera,
-  Printer
+  Printer,
+  Database
 } from 'lucide-react';
+import { SyncModal } from './SyncModal';
 
 
 
@@ -40,6 +42,7 @@ export const InventoryPage: React.FC = () => {
   const setTelegramSettings = useStore((state) => state.setTelegramSettings);
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
   const [settingsToken, setSettingsToken] = useState(telegramBotToken || '');
   const [settingsChatId, setSettingsChatId] = useState(telegramChatId || '');
   const [settingsEnabled, setSettingsEnabled] = useState(enableTelegramAlerts);
@@ -506,6 +509,13 @@ export const InventoryPage: React.FC = () => {
               <span>Alert Settings</span>
             </button>
           )}
+          <button
+            onClick={() => setShowSyncModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 text-zinc-350 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm"
+          >
+            <Database className="w-4 h-4 text-[#c06c3c]" />
+            <span>Data Sync / Cloud</span>
+          </button>
           {user?.role === 'admin' && (
             <button
               onClick={handleResetAll}
@@ -1396,6 +1406,9 @@ export const InventoryPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Database Sync & Migration Modal */}
+      <SyncModal isOpen={showSyncModal} onClose={() => setShowSyncModal(false)} />
     </div>
   );
 };

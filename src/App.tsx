@@ -9,6 +9,7 @@ import { TransactionsPage } from './components/TransactionsPage';
 import { ShortagesPage } from './components/ShortagesPage';
 import { BulkAdjustPage } from './components/BulkAdjustPage';
 import { AuditsPage } from './components/AuditsPage';
+import { SyncModal } from './components/SyncModal';
 import { format } from 'date-fns';
 import {
   LayoutDashboard,
@@ -22,7 +23,9 @@ import {
   ListChecks,
   Sun,
   Moon,
-  ClipboardList
+  ClipboardList,
+  Cloud,
+  HardDrive
 } from 'lucide-react';
 
 const queryClient = new QueryClient({
@@ -34,10 +37,11 @@ const queryClient = new QueryClient({
   },
 });
 
-const HeaderBar: React.FC = () => {
+const HeaderBar: React.FC<{ onOpenSync: () => void }> = ({ onOpenSync }) => {
   const toggleTheme = useStore((state) => state.toggleTheme);
   const theme = useStore((state) => state.theme);
   const user = useStore((state) => state.user);
+  const db = useStore((state) => state.db);
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -45,13 +49,29 @@ const HeaderBar: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
+  const isCloud = !db.isDemo;
+
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#282421] pb-4 mb-6 print:hidden gap-3">
       <div className="min-w-0">
         <p className="text-[10px] text-zinc-500 font-mono tracking-widest uppercase">Warehouse Dashboard • Active Session</p>
         <h2 className="text-sm font-bold text-zinc-100 mt-0.5">Welcome back, {user?.username || 'Ernest'}</h2>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        {/* Cloud / Local Sync Pill */}
+        <button
+          onClick={onOpenSync}
+          title="Click to transfer data or sync to cloud"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold font-mono border transition-all cursor-pointer ${
+            isCloud
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+              : 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20'
+          }`}
+        >
+          {isCloud ? <Cloud className="w-3.5 h-3.5" /> : <HardDrive className="w-3.5 h-3.5" />}
+          <span>{isCloud ? 'Cloud Live' : 'Device Storage • Sync'}</span>
+        </button>
+
         {/* Live Date / Time */}
         <div className="text-right text-xs font-mono text-zinc-500 bg-[#181615] border border-[#2b2724] px-3.5 py-1.5 rounded-xl">
           {format(time, 'yyyy-MM-dd HH:mm:ss')}
@@ -79,6 +99,7 @@ const AppContent: React.FC = () => {
   const user = useStore((state) => state.user);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
   // Initialize theme class
   useEffect(() => {
@@ -239,8 +260,9 @@ const AppContent: React.FC = () => {
       {/* MAIN CONTAINER */}
       <main className="flex-1 md:h-screen md:overflow-y-auto px-6 py-8 md:px-10 flex flex-col justify-between">
         <div className="max-w-6xl w-full mx-auto pb-10 flex-1">
-          <HeaderBar />
+          <HeaderBar onOpenSync={() => setShowSyncModal(true)} />
           {renderActivePage()}
+          <SyncModal isOpen={showSyncModal} onClose={() => setShowSyncModal(false)} />
         </div>
         <footer className="w-full max-w-6xl mx-auto border-t border-[#282421] pt-6 pb-4 mt-8 text-center print:hidden">
           <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest font-mono">
